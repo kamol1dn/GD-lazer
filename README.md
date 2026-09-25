@@ -24,6 +24,19 @@ It replaces GD's menus, not its gameplay. GD's own screens and handlers still ru
 
 > Not affiliated with or endorsed by ppy or osu!. Animation behaviour is adapted from the MIT-licensed [osu!](https://github.com/ppy/osu) and [osu-framework](https://github.com/ppy/osu-framework) source code.
 
+## Screenshots
+
+![Main menu](docs/screenshots/main-menu.jpg)
+
+| | |
+|---|---|
+| ![Play submenu](docs/screenshots/play-submenu.jpg) | ![Song select](docs/screenshots/song-select.jpg) |
+| Play submenu | Song select |
+| ![Settings](docs/screenshots/settings.jpg) | ![Achievements](docs/screenshots/achievements.jpg) |
+| Settings | Achievements |
+| ![Profile](docs/screenshots/profile.jpg) | |
+| Profile | |
+
 ## Features
 
 **Main menu**
