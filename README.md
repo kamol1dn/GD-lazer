@@ -7,6 +7,14 @@
 >
 > Builds are made by GitHub Actions from this repo's source: grab the `.geode` from [Releases](https://github.com/kamol1dn/GD-lazer/releases) or the latest [Actions](https://github.com/kamol1dn/GD-lazer/actions) run. They are not reviewed by Geode, so install manually and at your own risk. Early copies shared before CI was set up were local builds.
 
+## An apology
+
+I submitted an early version of this mod to the Geode index as a local build, without knowing how the process works. That was my mistake, and I'm sorry to the Geode reviewers for the extra work it caused. The listing has been taken down, and this mod will stay off the index.
+
+I also understand the concern about how closely it follows osu!lazer's design. Credit for that design belongs to ppy and the osu! team. [gdlazer](https://github.com/HenrySck075/gdlazer) by HenrySck075 is an earlier, hand-made project with the same idea, and it's worth checking out.
+
+## About
+
 A Geode mod that rebuilds Geometry Dash's menus in the style of osu!lazer: a music-reactive main menu, a song-select screen for your levels, full-screen overlays for settings, chests, achievements and stats, and an intro and outro, all animated and with sounds.
 
 > [!WARNING]
