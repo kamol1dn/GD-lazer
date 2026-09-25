@@ -8,7 +8,7 @@ icons = [
  ('USERS',0xf0c0),('BELL',0xf0f3),('GAMEPAD',0xf11b),('KEYBOARD',0xf11c),('PUZZLE',0xf12e),('SHIELD',0xf132),
  ('SLIDERS',0xf1de),('PEN',0xf304),('DESKTOP',0xf390),('GEM',0xf3a5),('BOX_OPEN',0xf49e),('COINS',0xf51e),
  ('SHIRT',0xf553),('MEDAL',0xf5a2),('SEARCH',0xf002),
- ('STEP_BACKWARD',0xf048),('STEP_FORWARD',0xf051),('SHUFFLE',0xf074),('CIRCLE_PLAY',0xf144),('CIRCLE_PAUSE',0xf28b),
+ ('STEP_BACKWARD',0xf048),('ENVELOPE',0xf0e0),('USER_CHECK',0xf4fc),('USER_CLOCK',0xf4fd),('BAN',0xf05e),('LIST',0xf03a),('COPY',0xf0c5),('PLUS',0xf067),('THUMBS_UP',0xf164),('CLOCK',0xf017),('LINK',0xf0c1),('LAYERS',0xf5fd),('BELL_SLASH',0xf1f6),('CLOUD_UP',0xf0ee),('CLOUD_DOWN',0xf0ed),('SIGN_OUT',0xf2f5),('SIGN_IN',0xf2f6),('ROTATE',0xf021),('USER_GEAR',0xf4fe),('USER_PLUS',0xf234),('ID_CARD',0xf2c2),('STEP_FORWARD',0xf051),('SHUFFLE',0xf074),('CIRCLE_PLAY',0xf144),('CIRCLE_PAUSE',0xf28b),
 ]
 icons.sort(key=lambda x: x[1])
 lines = []

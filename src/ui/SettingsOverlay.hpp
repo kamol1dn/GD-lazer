@@ -52,7 +52,9 @@ public:
 protected:
     bool init(float topInset);
     void layout();
-    void applyFilter(std::string const& query);
+    void applyFilter(std::string const& query, bool resetScroll = true);
+    // Rows whose applicability changed since the last layout (see SettingsRow::setShownIf).
+    bool applicabilityChanged();
     SettingsRow* rowAt(cocos2d::CCPoint world);
     int sidebarButtonAt(cocos2d::CCPoint world);
     void updateTooltip(float dt, SettingsRow* hovered);
@@ -80,6 +82,7 @@ protected:
 
     bool m_open = false;
     std::vector<Section> m_sections;
+    std::vector<bool> m_applicable; // last seen SettingsRow::applicable() of every row
     int m_currentSection = 0;
 
     cocos2d::CCLayerColor* m_dim = nullptr;

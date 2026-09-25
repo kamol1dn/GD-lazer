@@ -254,6 +254,58 @@ void SliderRow::update(float dt) {
 
 // ---------------------------------------------------------------------------
 
+InfoRow* InfoRow::create(float width, float k, char const* glyph,
+                         std::function<std::string()> title, std::function<std::string()> subtitle) {
+    return make<InfoRow>(width, k, glyph, std::move(title), std::move(subtitle));
+}
+
+bool InfoRow::init(float width, float k, char const* glyph,
+                   std::function<std::string()> title, std::function<std::string()> subtitle) {
+    if (!CCNode::init()) return false;
+    m_title = std::move(title);
+    m_subtitle = std::move(subtitle);
+    float h = 58 * k;
+    this->setContentSize({width, h});
+
+    // Avatar-style circle with the icon.
+    float d = 40 * k;
+    auto circle = RoundedBox::create({d, d}, d / 2, theme::DARK3);
+    circle->setPosition({d / 2, h / 2});
+    this->addChild(circle);
+    auto icon = makeIcon(glyph, 18 * k);
+    icon->setColor(theme::LIGHT1);
+    icon->setPosition({d / 2, h / 2});
+    this->addChild(icon, 1);
+
+    m_titleLabel = makeText("", Weight::SemiBold, 18 * k);
+    m_titleLabel->setAnchorPoint({0, 0});
+    m_titleLabel->setPosition({d + 12 * k, h / 2 + 1 * k});
+    this->addChild(m_titleLabel, 1);
+
+    m_subtitleLabel = makeText("", Weight::Regular, 14 * k);
+    m_subtitleLabel->setColor(theme::FOREGROUND1);
+    m_subtitleLabel->setAnchorPoint({0, 1});
+    m_subtitleLabel->setPosition({d + 12 * k, h / 2 - 1 * k});
+    this->addChild(m_subtitleLabel, 1);
+
+    refresh();
+    this->scheduleUpdate();
+    return true;
+}
+
+void InfoRow::refresh() {
+    auto title = m_title ? m_title() : "";
+    auto subtitle = m_subtitle ? m_subtitle() : "";
+    if (title != m_lastTitle) m_titleLabel->setString((m_lastTitle = title).c_str());
+    if (subtitle != m_lastSubtitle) m_subtitleLabel->setString((m_lastSubtitle = subtitle).c_str());
+    m_searchText = lower(title + " " + subtitle);
+}
+
+void InfoRow::update(float) {
+    // Cheap: the providers read a few fields, labels only change when the text does.
+    refresh();
+}
+
 ButtonRow* ButtonRow::create(std::string const& label, float width, float k,
                              std::function<void()> action, bool dangerous) {
     return make<ButtonRow>(label, width, k, std::move(action), dangerous);

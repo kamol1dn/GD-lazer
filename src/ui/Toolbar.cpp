@@ -237,16 +237,25 @@ void Toolbar::addRight(Item item) {
     layout();
 }
 
-void Toolbar::setUser(std::string const& name, std::function<void()> action) {
+void Toolbar::setUser(std::string const& name, CCNode* avatarNode, std::function<void()> action) {
     if (m_user) m_user->removeFromParent();
 
     // Avatar circle + name, as one wide toolbar button.
     auto holder = CCNode::create();
     float avatar = m_height * 0.62f;
     auto circle = RoundedBox::create({avatar, avatar}, avatar / 2, {70, 70, 70, 255});
-    auto glyph = makeIcon(icon::USER, avatar * 0.5f);
-    glyph->setPosition(CCSize(avatar, avatar) / 2);
-    circle->addChild(glyph);
+    if (avatarNode) {
+        // Fit into the circle; callers size it roughly, this makes it exact.
+        auto s = avatarNode->getScaledContentSize();
+        float side = std::max(s.width, s.height);
+        if (side > 0) avatarNode->setScale(avatarNode->getScale() * avatar * 0.62f / side);
+        avatarNode->setPosition(CCSize(avatar, avatar) / 2);
+        circle->addChild(avatarNode);
+    } else {
+        auto glyph = makeIcon(icon::USER, avatar * 0.5f);
+        glyph->setPosition(CCSize(avatar, avatar) / 2);
+        circle->addChild(glyph);
+    }
     auto text = makeText(name, Weight::SemiBold, m_height * 0.4f);
     text->setAnchorPoint({0, 0.5f});
 

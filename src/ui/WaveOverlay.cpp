@@ -27,7 +27,7 @@ namespace {
 }
 
 bool WaveOverlay::init(float topInset, theme::Scheme scheme, char const* icon,
-                       std::string const& title, std::string const& description) {
+                       std::string const& title, std::string const& description, float headerHeight) {
     if (!CCNode::init()) return false;
     auto win = CCDirector::sharedDirector()->getWinSize();
     m_k = win.height / 768.f;
@@ -56,7 +56,9 @@ bool WaveOverlay::init(float topInset, theme::Scheme scheme, char const* icon,
     m_content->setContentSize({win.width, m_height});
     this->addChild(m_content, 1);
 
-    float headerH = HEADER_HEIGHT * m_k;
+    float headerH = headerHeight * m_k;
+    // Shorter headers get proportionally smaller text.
+    float textScale = std::min(1.f, headerHeight / HEADER_HEIGHT * 1.15f);
     auto bodyBg = CCLayerColor::create(scheme.background5());
     bodyBg->setContentSize({win.width, m_height - headerH});
     m_content->addChild(bodyBg, 0);
@@ -73,19 +75,19 @@ bool WaveOverlay::init(float topInset, theme::Scheme scheme, char const* icon,
     m_content->addChild(accent, 1);
 
     float pad = HORIZONTAL_PADDING * m_k;
-    auto iconLabel = makeIcon(icon, 34 * m_k);
+    auto iconLabel = makeIcon(icon, 34 * m_k * textScale);
     iconLabel->setColor(theme::rgb(scheme.highlight1()));
     iconLabel->setAnchorPoint({0, 0.5f});
     iconLabel->setPosition({pad, m_height - headerH / 2});
     m_content->addChild(iconLabel, 1);
 
     float textX = pad + iconLabel->getScaledContentSize().width + 16 * m_k;
-    auto titleLabel = makeText(title, Weight::Regular, 36 * m_k);
+    auto titleLabel = makeText(title, Weight::Regular, 36 * m_k * textScale);
     titleLabel->setAnchorPoint({0, 0});
     titleLabel->setPosition({textX, m_height - headerH / 2 - 2 * m_k});
     m_content->addChild(titleLabel, 1);
 
-    auto descLabel = makeText(description, Weight::Regular, 18 * m_k);
+    auto descLabel = makeText(description, Weight::Regular, 18 * m_k * textScale);
     descLabel->setColor(theme::rgb(scheme.content2()));
     descLabel->setAnchorPoint({0, 1});
     descLabel->setPosition({textX, m_height - headerH / 2 - 4 * m_k});
@@ -162,7 +164,11 @@ void WaveOverlay::update(float dt) {
 
     bool settled = m_contentY.get() >= 0.999f;
     for (auto& t : m_waveY) settled = settled && t.get() >= m_height - 0.5f;
-    if (!m_open && settled) this->setVisible(false);
+    if (!m_open && settled && this->isVisible()) {
+        this->setVisible(false);
+        onClosed();
+        return;
+    }
     if (!this->isVisible()) return;
 
     // Hover once the content has mostly arrived.

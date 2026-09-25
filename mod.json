@@ -28,7 +28,7 @@
 			"icons": {
 				"path": "resources/fonts/fa-solid-900.ttf",
 				"size": 96,
-				"charset": "61441,61442,61445,61447,61452,61453,61459,61461,61475,61480,61512,61515,61521,61523,61524,61527,61530,61547,61550,61556,61568,61572,61573,61585,61612,61613,61632,61683,61723,61724,61742,61746,61764,61918,62091,62212,62352,62373,62622,62750,62803,62882"
+				"charset": "61441,61442,61445,61447,61452,61453,61459,61461,61463,61473,61475,61480,61498,61512,61515,61521,61523,61524,61527,61530,61534,61543,61547,61550,61556,61568,61572,61573,61585,61612,61613,61632,61633,61637,61664,61677,61678,61683,61723,61724,61742,61746,61764,61796,61918,61942,62004,62091,62146,62197,62198,62212,62352,62373,62622,62716,62717,62718,62750,62803,62882,62973"
 			}
 		},
 		"files": [
@@ -60,7 +60,23 @@
 		]
 	},
 	"dependencies": {
-		"prevter.imageplus": ">=1.0.0"
+		"prevter.imageplus": ">=1.0.0",
+		"weebify.separate_dual_icons": {
+			"version": ">=1.4.0",
+			"required": false
+		},
+		"itzkiba.better_progression": {
+			"version": ">=1.3.0",
+			"required": false
+		},
+		"cdc.level_thumbnails": {
+			"version": ">=2.0.0",
+			"required": false
+		},
+		"dankmeme.globed2": {
+			"version": ">=2.0.0",
+			"required": false
+		}
 	},
 	"settings": {
 		"enabled": {
@@ -73,6 +89,12 @@
 			"type": "bool",
 			"name": "Restyle popups",
 			"description": "Give GD's popups (rewards, confirmations, info boxes...) the dark osu!-style look. Other mods' popups are left alone.",
+			"default": true
+		},
+		"restyle-profiles": {
+			"type": "bool",
+			"name": "Lazer profiles",
+			"description": "Show player profiles (yours and everyone else's) as a full osu!-style page instead of GD's popup.",
 			"default": true
 		},
 		"music-player": {

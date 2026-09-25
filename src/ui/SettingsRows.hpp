@@ -28,9 +28,15 @@ public:
     std::string const& tooltip() const { return m_tooltip; }
     void setTooltip(std::string t) { m_tooltip = std::move(t); }
 
+    // Rows that only make sense sometimes (e.g. "log in" while logged out)
+    // hide themselves; the overlay re-checks this while it's open.
+    void setShownIf(std::function<bool()> condition) { m_shownIf = std::move(condition); }
+    bool applicable() const { return !m_shownIf || m_shownIf(); }
+
 protected:
     std::string m_searchText;
     std::string m_tooltip;
+    std::function<bool()> m_shownIf;
 };
 
 class SectionHeaderRow : public SettingsRow {
@@ -107,6 +113,26 @@ protected:
     Tweened<float> m_hover {0.f};
     double m_lastTickMs = -1000;
     std::string m_lastTickValue;
+};
+
+// An icon with a title and a subtitle that follow live values (account status...).
+class InfoRow : public SettingsRow {
+public:
+    static InfoRow* create(float width, float k, char const* glyph,
+                           std::function<std::string()> title, std::function<std::string()> subtitle);
+    void refresh() override;
+    void update(float dt) override;
+
+    // Public so the shared create() helper can call it.
+    bool init(float width, float k, char const* glyph,
+              std::function<std::string()> title, std::function<std::string()> subtitle);
+
+protected:
+    std::function<std::string()> m_title;
+    std::function<std::string()> m_subtitle;
+    cocos2d::CCLabelBMFont* m_titleLabel = nullptr;
+    cocos2d::CCLabelBMFont* m_subtitleLabel = nullptr;
+    std::string m_lastTitle, m_lastSubtitle;
 };
 
 // Full-width rounded button.

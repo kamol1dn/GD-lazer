@@ -2,11 +2,14 @@
 #include <Geode/modify/MenuLayer.hpp>
 
 #include "audio/MusicPlayer.hpp"
+#include "settings/Account.hpp"
 #include "settings/SettingsContent.hpp"
+#include "ui/AccountPanel.hpp"
 #include "ui/AchievementsOverlay.hpp"
 #include "ui/ButtonSystem.hpp"
 #include "ui/LevelThumbnails.hpp"
 #include "ui/MenuBackground.hpp"
+#include "ui/ModIntegrations.hpp"
 #include "ui/NowPlayingOverlay.hpp"
 #include "ui/RewardsOverlay.hpp"
 #include "ui/SettingsOverlay.hpp"
@@ -72,6 +75,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
         lazer::AchievementsOverlay* achievements = nullptr;
         lazer::StatsOverlay* stats = nullptr;
         lazer::NowPlayingOverlay* nowPlaying = nullptr;
+        lazer::AccountPanel* account = nullptr;
         lazer::SongTicker* ticker = nullptr;
         int backgroundRequest = 0; // newest thumbnail request; older results are dropped
     };
@@ -216,12 +220,22 @@ class $modify(LazerMenuLayer, MenuLayer) {
                 if (auto p = typeinfo_cast<CCMenuItem*>(menu->getChildByID("profile-button"))) profile = p;
             }
         }
-        std::string name = GJAccountManager::get()->m_username;
-        if (name.empty()) name = GameManager::get()->m_playerName;
-        if (name.empty()) name = "guest";
+        // The user button opens our account card; GD's profile page is one of its items.
         Ref<CCMenuItem> profileRef = profile;
-        toolbar->setUser(name, [profileRef] {
-            if (profileRef) profileRef->activate();
+        auto panel = lazer::AccountPanel::create(toolbar->height(), {
+            [profileRef] { if (profileRef) profileRef->activate(); },
+            [this] {
+                g_returnToTopLevel = true;
+                this->onGarage(nullptr);
+            },
+        });
+        panel->setID("account"_spr);
+        this->addChild(panel, 18);
+        m_fields->account = panel;
+        float avatar = toolbar->height() * 0.62f;
+        toolbar->setUser(lazer::account::username(), lazer::integrations::playerIcon(false, avatar * 0.62f), [this] {
+            if (m_fields->nowPlaying) m_fields->nowPlaying->close();
+            m_fields->account->toggle();
         });
     }
 
@@ -322,6 +336,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
             nowPlaying->setID("now-playing"_spr);
             this->addChild(nowPlaying, 18);
         }
+        if (m_fields->account) m_fields->account->close();
         nowPlaying->toggle();
         if (nowPlaying->isOpen() && m_fields->ticker) m_fields->ticker->hide();
     }
@@ -329,6 +344,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
     void keyBackClicked() {
         // Escape closes overlays, then collapses the button bar (like osu!), then GD's quit prompt.
         if (m_fields->nowPlaying && m_fields->nowPlaying->back()) return;
+        if (m_fields->account && m_fields->account->back()) return;
         if (m_fields->settings && m_fields->settings->back()) return;
         if (m_fields->rewards && m_fields->rewards->back()) return;
         if (m_fields->achievements && m_fields->achievements->back()) return;

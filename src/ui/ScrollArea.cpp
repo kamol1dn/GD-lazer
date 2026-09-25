@@ -40,6 +40,13 @@ void ScrollArea::onEnter() {
     CCDirector::sharedDirector()->getMouseDispatcher()->addDelegate(this);
 }
 
+void ScrollArea::claimWheel() {
+    if (!this->isRunning()) return;
+    auto dispatcher = CCDirector::sharedDirector()->getMouseDispatcher();
+    dispatcher->removeDelegate(this);
+    dispatcher->addDelegate(this);
+}
+
 void ScrollArea::onExit() {
     CCDirector::sharedDirector()->getMouseDispatcher()->removeDelegate(this);
     CCNode::onExit();

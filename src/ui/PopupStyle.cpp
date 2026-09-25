@@ -165,6 +165,8 @@ class $modify(LazerPopup, FLAlertLayer) {
         m_fields->styled = true;
         if (!Mod::get()->getSettingValue<bool>("restyle-popups")) return;
         if (!isVanillaClass(this)) return;
+        // GD pages we run hidden behind our own UI (profiles, chests).
+        if (this->getUserObject("hidden"_spr)) return;
         restylePopup(this);
     }
 };

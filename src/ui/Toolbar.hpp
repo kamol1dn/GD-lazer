@@ -55,8 +55,9 @@ public:
 
     void addLeft(Item item);
     void addRight(Item item);
-    // User section at the far right: name + avatar circle.
-    void setUser(std::string const& name, std::function<void()> action);
+    // User section at the far right: name + avatar circle (`avatar` is drawn
+    // inside it, e.g. the player's icon; nullptr shows a generic user glyph).
+    void setUser(std::string const& name, cocos2d::CCNode* avatar, std::function<void()> action);
 
     void show();
     void hide();

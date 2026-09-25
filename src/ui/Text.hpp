@@ -23,8 +23,11 @@ namespace icon {
     constexpr auto XMARK = "\xEF\x80\x8D";          // f00d
     constexpr auto GEAR = "\xEF\x80\x93";           // f013
     constexpr auto HOUSE = "\xEF\x80\x95";          // f015
+    constexpr auto CLOCK = "\xEF\x80\x97";          // f017
+    constexpr auto ROTATE = "\xEF\x80\xA1";         // f021
     constexpr auto LOCK = "\xEF\x80\xA3";           // f023
     constexpr auto VOLUME = "\xEF\x80\xA8";         // f028
+    constexpr auto LIST = "\xEF\x80\xBA";           // f03a
     constexpr auto STEP_BACKWARD = "\xEF\x81\x88";  // f048
     constexpr auto PLAY = "\xEF\x81\x8B";           // f04b
     constexpr auto STEP_FORWARD = "\xEF\x81\x91";   // f051
@@ -32,6 +35,8 @@ namespace icon {
     constexpr auto CHEVRON_RIGHT = "\xEF\x81\x94";  // f054
     constexpr auto CIRCLE_XMARK = "\xEF\x81\x97";   // f057
     constexpr auto CIRCLE_INFO = "\xEF\x81\x9A";    // f05a
+    constexpr auto BAN = "\xEF\x81\x9E";            // f05e
+    constexpr auto PLUS = "\xEF\x81\xA7";           // f067
     constexpr auto GIFT = "\xEF\x81\xAB";           // f06b
     constexpr auto EYE = "\xEF\x81\xAE";            // f06e
     constexpr auto SHUFFLE = "\xEF\x81\xB4";        // f074
@@ -42,21 +47,36 @@ namespace icon {
     constexpr auto GLOBE = "\xEF\x82\xAC";          // f0ac
     constexpr auto WRENCH = "\xEF\x82\xAD";         // f0ad
     constexpr auto USERS = "\xEF\x83\x80";          // f0c0
+    constexpr auto LINK = "\xEF\x83\x81";           // f0c1
+    constexpr auto COPY = "\xEF\x83\x85";           // f0c5
+    constexpr auto ENVELOPE = "\xEF\x83\xA0";       // f0e0
+    constexpr auto CLOUD_DOWN = "\xEF\x83\xAD";     // f0ed
+    constexpr auto CLOUD_UP = "\xEF\x83\xAE";       // f0ee
     constexpr auto BELL = "\xEF\x83\xB3";           // f0f3
     constexpr auto GAMEPAD = "\xEF\x84\x9B";        // f11b
     constexpr auto KEYBOARD = "\xEF\x84\x9C";       // f11c
     constexpr auto PUZZLE = "\xEF\x84\xAE";         // f12e
     constexpr auto SHIELD = "\xEF\x84\xB2";         // f132
     constexpr auto CIRCLE_PLAY = "\xEF\x85\x84";    // f144
+    constexpr auto THUMBS_UP = "\xEF\x85\xA4";      // f164
     constexpr auto SLIDERS = "\xEF\x87\x9E";        // f1de
+    constexpr auto BELL_SLASH = "\xEF\x87\xB6";     // f1f6
+    constexpr auto USER_PLUS = "\xEF\x88\xB4";      // f234
     constexpr auto CIRCLE_PAUSE = "\xEF\x8A\x8B";   // f28b
+    constexpr auto ID_CARD = "\xEF\x8B\x82";        // f2c2
+    constexpr auto SIGN_OUT = "\xEF\x8B\xB5";       // f2f5
+    constexpr auto SIGN_IN = "\xEF\x8B\xB6";        // f2f6
     constexpr auto PEN = "\xEF\x8C\x84";            // f304
     constexpr auto DESKTOP = "\xEF\x8E\x90";        // f390
     constexpr auto GEM = "\xEF\x8E\xA5";            // f3a5
     constexpr auto BOX_OPEN = "\xEF\x92\x9E";       // f49e
+    constexpr auto USER_CHECK = "\xEF\x93\xBC";     // f4fc
+    constexpr auto USER_CLOCK = "\xEF\x93\xBD";     // f4fd
+    constexpr auto USER_GEAR = "\xEF\x93\xBE";      // f4fe
     constexpr auto COINS = "\xEF\x94\x9E";          // f51e
     constexpr auto SHIRT = "\xEF\x95\x93";          // f553
     constexpr auto MEDAL = "\xEF\x96\xA2";          // f5a2
+    constexpr auto LAYERS = "\xEF\x97\xBD";         // f5fd
 }
 
 cocos2d::CCLabelBMFont* makeIcon(char const* glyph, float size);

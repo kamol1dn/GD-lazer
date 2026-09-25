@@ -32,6 +32,9 @@ public:
     void onEnter() override;
     void onExit() override;
     void scrollWheel(float y, float x) override;
+    // Re-register for the mouse wheel so we're the newest delegate again
+    // (e.g. after a hidden GD list registered itself on top of us).
+    void claimWheel();
 
 protected:
     bool init(cocos2d::CCSize size);

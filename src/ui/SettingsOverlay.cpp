@@ -224,7 +224,7 @@ void SettingsOverlay::finish() {
     for (size_t i = 0; i < m_sections.size(); i++) {
         m_sections[i].sidebarButton->setPosition({0, height - size * (i + 1) - 10 * m_k});
     }
-    layout();
+    applyFilter("", false); // lays out, leaving out rows that don't apply right now
 }
 
 void SettingsOverlay::layout() {
@@ -254,7 +254,18 @@ void SettingsOverlay::layout() {
     m_scroll->setContentHeight(y);
 }
 
-void SettingsOverlay::applyFilter(std::string const& queryRaw) {
+bool SettingsOverlay::applicabilityChanged() {
+    std::vector<bool> now;
+    for (auto& s : m_sections) {
+        for (auto r : s.rows) now.push_back(r->applicable());
+    }
+    if (now == m_applicable) return false;
+    m_applicable = std::move(now);
+    return true;
+}
+
+void SettingsOverlay::applyFilter(std::string const& queryRaw, bool resetScroll) {
+    applicabilityChanged(); // remember what this layout is based on
     auto query = lower(queryRaw);
     for (auto& s : m_sections) {
         bool headerMatch = query.empty() || s.rows.front()->searchText().find(query) != std::string::npos;
@@ -275,7 +286,8 @@ void SettingsOverlay::applyFilter(std::string const& queryRaw) {
                 subsectionHasItem = false;
                 continue;
             }
-            bool match = headerMatch || subsectionMatch || r->searchText().find(query) != std::string::npos;
+            bool match = (headerMatch || subsectionMatch || r->searchText().find(query) != std::string::npos)
+                && r->applicable();
             r->setVisible(match);
             if (match) { anyItem = true; subsectionHasItem = true; }
         }
@@ -284,7 +296,7 @@ void SettingsOverlay::applyFilter(std::string const& queryRaw) {
         s.rows.front()->setVisible(s.visible);
     }
     layout();
-    m_scroll->scrollTo(0);
+    if (resetScroll) m_scroll->scrollTo(0);
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +406,8 @@ void SettingsOverlay::update(float dt) {
     m_root->setPositionX((m_slide.get() - 1.f) * total);
     m_dim->setOpacity(toByte(DIM_ALPHA * m_slide.get()));
     if (!m_open && m_slide.get() <= 0.001f) this->setVisible(false);
+    // e.g. logging in swaps "log in" for "save" / "load".
+    if (m_open && applicabilityChanged()) applyFilter(m_search->getString(), false);
     g_overlayOpen = m_open;
     if (!this->isVisible()) return;
 

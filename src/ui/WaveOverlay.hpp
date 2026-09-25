@@ -31,8 +31,9 @@ public:
     void ccTouchCancelled(cocos2d::CCTouch* touch, cocos2d::CCEvent* e) override { ccTouchEnded(touch, e); }
 
 protected:
+    // `headerHeight` in osu! pixels (default: osu!'s 110).
     bool init(float topInset, theme::Scheme scheme, char const* icon,
-              std::string const& title, std::string const& description);
+              std::string const& title, std::string const& description, float headerHeight = 110.f);
 
     // Area under the header, in body() space (origin bottom-left).
     cocos2d::CCNode* body() const { return m_body; }
@@ -42,6 +43,8 @@ protected:
 
     virtual void onOpened() {}
     virtual void onUpdate(float dt) {}
+    // The close animation has finished and the overlay is now hidden.
+    virtual void onClosed() {}
 
     float m_k = 1;
     theme::Scheme m_scheme {255};

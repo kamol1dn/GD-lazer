@@ -4,6 +4,7 @@
 #include "../ui/SettingsOverlay.hpp"
 #include "../ui/SettingsRows.hpp"
 #include "../ui/Text.hpp"
+#include "Account.hpp"
 #include "GDOptions.hpp"
 
 #include <Geode/ui/GeodeUI.hpp>
@@ -15,6 +16,7 @@ using namespace geode::prelude;
 namespace lazer {
 
 namespace {
+
     std::string lower(std::string s) {
         std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
         return s;
@@ -79,13 +81,35 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
     // --- General ---
     overlay->beginSection("General", icon::GEAR);
     overlay->addSubsection("Account");
-    overlay->addRow(ButtonRow::create("Account", w, k, [] {
-        AccountLayer::create()->showLayer(false);
-    }));
-    overlay->addSubsection("Help");
-    overlay->addRow(ButtonRow::create("How to play", w, k, [options] { (*options)->onHelp(nullptr); }));
-    overlay->addRow(ButtonRow::create("Rate Geometry Dash", w, k, [options] { (*options)->onRate(nullptr); }));
-    overlay->addRow(ButtonRow::create("Support", w, k, [options] { (*options)->onSupport(nullptr); }));
+    overlay->addRow(InfoRow::create(w, k, icon::USER,
+        [] { return account::loggedIn() ? account::username() : std::string("not logged in"); },
+        [] {
+            if (account::busy()) return "working...";
+            return account::loggedIn() ? "your progress can be saved online and loaded on other devices"
+                              : "log in to keep your progress safe online";
+        }
+    ));
+    auto accountButton = [&](char const* label, char const* tooltip, bool whenLoggedIn,
+                             std::function<void()> action, bool dangerous = false) {
+        auto row = ButtonRow::create(label, w, k, std::move(action), dangerous);
+        row->setTooltip(tooltip);
+        row->setShownIf([whenLoggedIn] { return account::loggedIn() == whenLoggedIn; });
+        overlay->addRow(row);
+    };
+    accountButton("Save", "Back up your progress to your account.", true,
+                  [] { account::save(); });
+    accountButton("Load", "Replace the progress on this device with your online backup.", true,
+                  [] { account::load(); });
+    accountButton("Refresh login", "Log in again, e.g. after changing your password.", true,
+                  [] { account::refreshLogin(); });
+    accountButton("Manage account", "Open account management on the Geometry Dash website.", true,
+                  [] { account::manage(); });
+    accountButton("Unlink account", "Log out of your account on this device.", true,
+                  [] { account::unlink(); }, true);
+    accountButton("Log in", "Log in to an existing account.", false,
+                  [] { account::logIn(); });
+    accountButton("Register", "Create a new account.", false,
+                  [] { account::registerAccount(); });
 
     // --- Audio ---
     overlay->beginSection("Audio", icon::VOLUME);

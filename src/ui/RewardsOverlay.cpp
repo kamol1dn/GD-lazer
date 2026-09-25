@@ -2,6 +2,9 @@
 
 #include "Text.hpp"
 
+#include <Geode/modify/RewardUnlockLayer.hpp>
+#include <Geode/modify/RewardsPage.hpp>
+
 #include <cmath>
 
 using namespace geode::prelude;
@@ -27,8 +30,16 @@ RewardsOverlay* RewardsOverlay::create(float topInset) {
 bool RewardsOverlay::init(float topInset) {
     if (!WaveOverlay::init(topInset, SCHEME, icon::GIFT, "rewards", "free chests, every few hours")) return false;
 
-    // GD's own page, never shown: it talks to the server and runs the timers.
+    // GD's own page: it talks to the server and runs the timers. It lives in
+    // the scene (so anything GD attaches to it while revealing a reward
+    // draws) but is invisible and takes no input.
     m_page = RewardsPage::create();
+    m_page->setUserObject("hidden"_spr, CCBool::create(true));
+    m_page->setTouchEnabled(false);
+    m_page->setKeypadEnabled(false);
+    m_page->setOpacity(0);
+    if (m_page->m_mainLayer) m_page->m_mainLayer->setVisible(false);
+    this->addChild(m_page, 100);
 
     auto size = bodySize();
     CCSize cardSize {280 * m_k, 360 * m_k};
@@ -115,17 +126,33 @@ void RewardsOverlay::updateCard(Card& card, CCMenuItemSpriteExtra* chestButton, 
 void RewardsOverlay::onUpdate(float dt) {
     m_idleTime += dt;
     if (!m_page) return;
-    // RewardsPage normally schedules this on itself; it isn't in the scene, so drive it here.
-    m_page->updateTimers(dt);
+    // The page is in the scene, so it runs its own timer schedule.
     updateCard(m_cards[0], m_page->m_leftChest, m_page->m_leftLabel, m_page->m_leftOpen);
     updateCard(m_cards[1], m_page->m_rightChest, m_page->m_rightLabel, m_page->m_rightOpen);
 }
 
 void RewardsOverlay::openChest(int index) {
     if (!m_page) return;
+    log::info("Opening chest {}", index);
     // Same as clicking the chest on GD's page: GD's unlock animation plays over the overlay.
     if (index == 0 && m_page->m_leftOpen) m_page->onReward(m_page->m_leftChest);
     if (index == 1 && m_page->m_rightOpen) m_page->onReward(m_page->m_rightChest);
 }
 
 } // namespace lazer
+
+// Our hidden RewardsPage must never grab touches (FLAlertLayer registers at a
+// very high priority and swallows everything).
+class $modify(LazerHiddenRewardsPage, RewardsPage) {
+    void registerWithTouchDispatcher() {
+        if (this->getUserObject("hidden"_spr)) return;
+        RewardsPage::registerWithTouchDispatcher();
+    }
+};
+
+class $modify(LazerRewardUnlockLayer, RewardUnlockLayer) {
+    bool showCollectReward(GJRewardItem* item) {
+        log::info("Chest reward arrived: {}", item ? "yes" : "none");
+        return RewardUnlockLayer::showCollectReward(item);
+    }
+};
