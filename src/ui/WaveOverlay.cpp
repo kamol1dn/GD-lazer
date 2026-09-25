@@ -1,5 +1,6 @@
 #include "WaveOverlay.hpp"
 
+#include "../audio/Sfx.hpp"
 #include "Text.hpp"
 
 #include <Geode/Geode.hpp>
@@ -117,6 +118,7 @@ void WaveOverlay::open() {
     g_overlayOpen = true;
     this->setVisible(true);
     // WaveContainer.PopIn
+    sfx::play(sfx::sound::WAVE_POP_IN);
     for (size_t i = 0; i < m_waves.size(); i++) m_waveY[i].to(m_waveFinal[i], APPEAR_DURATION, Easing::OutSine);
     m_contentY.to(0.f, APPEAR_DURATION, Easing::OutQuint);
     onOpened();
@@ -127,6 +129,7 @@ void WaveOverlay::close() {
     m_open = false;
     g_overlayOpen = false;
     // WaveContainer.PopOut
+    sfx::play(sfx::sound::WAVE_POP_OUT);
     for (size_t i = 0; i < m_waves.size(); i++) m_waveY[i].to(m_height, DISAPPEAR_DURATION, Easing::InSine);
     m_contentY.to(1.f, DISAPPEAR_DURATION, Easing::In);
     if (m_hovered) { m_hovered->setHovered(false); m_hovered = nullptr; }

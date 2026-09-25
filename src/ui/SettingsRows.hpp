@@ -93,6 +93,7 @@ public:
 
 protected:
     void layoutBar();
+    void playTick();
 
     std::function<float()> m_get;
     std::function<void(float)> m_set;
@@ -104,6 +105,8 @@ protected:
     RoundedBox* m_filled = nullptr;
     RoundedBox* m_nub = nullptr;
     Tweened<float> m_hover {0.f};
+    double m_lastTickMs = -1000;
+    std::string m_lastTickValue;
 };
 
 // Full-width rounded button.

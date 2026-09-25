@@ -1,5 +1,6 @@
 #include "Toolbar.hpp"
 
+#include "../audio/Sfx.hpp"
 #include "Text.hpp"
 
 #include <Geode/Geode.hpp>
@@ -142,6 +143,7 @@ void ToolbarButton::update(float dt) {
     bool hovered = visible && containsWorldPoint(geode::cocos::getMousePos());
     if (hovered != m_hovered) {
         m_hovered = hovered;
+        if (hovered) sfx::hover(sfx::sound::DEFAULT_HOVER);
         m_hoverAlpha.to(hovered ? 1.f : 0.f, 200, hovered ? Easing::OutQuint : Easing::None);
     }
     m_hoverAlpha.update(dt);
@@ -171,6 +173,7 @@ void ToolbarButton::ccTouchEnded(CCTouch* touch, CCEvent*) {
     if (!containsWorldPoint(touch->getLocation())) return;
     m_flash.set(1.f);
     m_flash.to(0.f, 500, Easing::OutQuint);
+    sfx::click(sfx::sound::DEFAULT_SELECT);
     if (m_action) m_action();
 }
 

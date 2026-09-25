@@ -1,5 +1,6 @@
 #include "SettingsOverlay.hpp"
 
+#include "../audio/Sfx.hpp"
 #include "Text.hpp"
 #include "Theme.hpp"
 
@@ -33,50 +34,6 @@ namespace {
         return local.x >= 0 && local.y >= 0 && local.x <= size.width && local.y <= size.height;
     }
 
-    // Greedy word wrap using the label's own measurements.
-    CCNode* makeWrappedText(std::string const& text, float size, float maxWidth, ccColor3B color) {
-        auto holder = CCNode::create();
-        std::vector<std::string> lines;
-        std::string line, word;
-        auto measure = [&](std::string const& s) {
-            auto l = makeText(s, Weight::Regular, size);
-            return l->getScaledContentSize().width;
-        };
-        auto flushWord = [&] {
-            if (word.empty()) return;
-            std::string candidate = line.empty() ? word : line + " " + word;
-            if (!line.empty() && measure(candidate) > maxWidth) {
-                lines.push_back(line);
-                line = word;
-            } else {
-                line = candidate;
-            }
-            word.clear();
-        };
-        for (char c : text) {
-            if (c == ' ' || c == '\n') {
-                flushWord();
-                if (c == '\n') { lines.push_back(line); line.clear(); }
-            } else {
-                word += c;
-            }
-        }
-        flushWord();
-        if (!line.empty()) lines.push_back(line);
-
-        float lineHeight = size * 1.15f;
-        float width = 0;
-        for (size_t i = 0; i < lines.size(); i++) {
-            auto l = makeText(lines[i], Weight::Regular, size);
-            l->setColor(color);
-            l->setAnchorPoint({0, 1});
-            l->setPosition({0, -lineHeight * i});
-            holder->addChild(l);
-            width = std::max(width, l->getScaledContentSize().width);
-        }
-        holder->setContentSize({width, lineHeight * lines.size()});
-        return holder;
-    }
 
     // GD descriptions use colour tags like <cy>...</c>; strip them for plain text.
     std::string stripTags(std::string s) {
@@ -341,12 +298,14 @@ void SettingsOverlay::open() {
         for (auto r : s.rows) r->refresh();
     }
     // SettingsPanel.PopIn
+    sfx::play(sfx::sound::SETTINGS_POP_IN);
     m_slide.to(1.f, TRANSITION, Easing::OutQuint);
 }
 
 void SettingsOverlay::close() {
     if (!m_open) return;
     m_open = false;
+    sfx::play(sfx::sound::OVERLAY_POP_OUT);
     m_slide.to(0.f, TRANSITION, Easing::OutQuint);
     if (m_hoveredRow) { m_hoveredRow->setHovered(false); m_hoveredRow = nullptr; }
     m_tooltip->setVisible(false);
@@ -465,6 +424,10 @@ void SettingsOverlay::update(float dt) {
     }
     m_sidebarSelection->setPositionY(m_selectionY.get());
     int hoveredButton = interactive ? sidebarButtonAt(mouse) : -1;
+    if (hoveredButton != m_hoveredSidebar) {
+        if (hoveredButton >= 0) sfx::hover(sfx::sound::SIDEBAR_HOVER);
+        m_hoveredSidebar = hoveredButton;
+    }
     for (size_t i = 0; i < m_sections.size(); i++) {
         auto& s = m_sections[i];
         bool lit = int(i) == m_currentSection || int(i) == hoveredButton;
@@ -547,6 +510,7 @@ void SettingsOverlay::ccTouchEnded(CCTouch* touch, CCEvent*) {
         m_scroll->endDrag(m_dragVelocity);
     } else if (m_pressedSidebar >= 0) {
         if (sidebarButtonAt(loc) == m_pressedSidebar) {
+            sfx::click(sfx::sound::SIDEBAR_SELECT);
             m_scroll->scrollTo(m_sections[m_pressedSidebar].top);
         }
     } else if (m_pressedRow && !m_pressedRow->wantsDrag() && rowAt(loc) == m_pressedRow) {

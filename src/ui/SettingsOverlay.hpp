@@ -99,6 +99,7 @@ protected:
     SettingsRow* m_pressedRow = nullptr;
     SettingsRow* m_hoveredRow = nullptr;
     int m_pressedSidebar = -1;
+    int m_hoveredSidebar = -1;
     bool m_scrollDragging = false;
     cocos2d::CCPoint m_touchStart;
     cocos2d::CCPoint m_lastTouch;

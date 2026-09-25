@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../audio/Sfx.hpp"
 #include "Easing.hpp"
 #include "LazerLogo.hpp"
 #include "MenuButton.hpp"
@@ -25,6 +26,7 @@ public:
         cocos2d::ccColor3B color;
         std::function<void()> action;
         bool leavesMenu = true; // explode + enter mode, vs. open a popup over the menu
+        char const* sound = sfx::sound::MENU_DEFAULT_SELECT;
     };
 
     // `left` buttons sit left of the logo (nearest first), `right` to its right.

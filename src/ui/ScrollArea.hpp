@@ -44,4 +44,26 @@ protected:
     bool m_dragging = false;
 };
 
+// Turns an owner's touches into drag scrolling for a ScrollArea: forward
+// began / moved / ended; a touch only starts scrolling once it has moved a
+// few units, so taps still reach the owner's buttons.
+class ScrollDragger {
+public:
+    explicit ScrollDragger(float threshold = 5.f) : m_threshold(threshold) {}
+
+    void began(ScrollArea* area, cocos2d::CCPoint loc);
+    // Returns true while the touch is scrolling (the owner should ignore it).
+    bool moved(cocos2d::CCPoint loc);
+    // Returns true if the touch was a scroll (not a tap).
+    bool ended();
+    bool dragging() const { return m_dragging; }
+
+private:
+    ScrollArea* m_area = nullptr;
+    cocos2d::CCPoint m_start, m_last;
+    bool m_dragging = false;
+    float m_velocity = 0;
+    float m_threshold;
+};
+
 } // namespace lazer

@@ -77,6 +77,7 @@ MenuButton* ButtonSystem::makeButton(ButtonDef const& def) {
         }
     );
     button->setExplodes(leaves);
+    button->setSelectSound(def.sound);
     this->addChild(button, 1);
     return button;
 }
@@ -84,6 +85,7 @@ MenuButton* ButtonSystem::makeButton(ButtonDef const& def) {
 void ButtonSystem::onLogoClicked() {
     switch (m_state) {
         case State::Initial:
+            sfx::play(sfx::sound::LOGO_SELECT);
             setState(State::TopLevel);
             break;
         case State::TopLevel:
@@ -115,6 +117,7 @@ void ButtonSystem::setState(State state) {
                 m_logoPos.to(m_center, 800, Easing::OutExpo);
                 m_logoScale.to(1.f, 800, Easing::OutExpo);
             }, true);
+            if (last == State::TopLevel) sfx::play(sfx::sound::LOGO_SWOOSH);
             break;
         case State::TopLevel:
             if (last == State::Initial) {
@@ -176,6 +179,7 @@ void ButtonSystem::resumeTopLevel() {
 
 bool ButtonSystem::back() {
     if (m_state != State::TopLevel) return false;
+    sfx::play(sfx::sound::BACK_TO_LOGO);
     setState(State::Initial);
     return true;
 }

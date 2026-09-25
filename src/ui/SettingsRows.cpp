@@ -1,10 +1,12 @@
 #include "SettingsRows.hpp"
 
+#include "../audio/Sfx.hpp"
 #include "Text.hpp"
 #include "Theme.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 
 using namespace cocos2d;
 
@@ -135,7 +137,10 @@ void ToggleRow::setHovered(bool hovered) {
 }
 
 void ToggleRow::onClick(CCPoint) {
-    if (m_toggle) setValue(m_toggle(), true);
+    if (!m_toggle) return;
+    bool on = m_toggle();
+    sfx::play(on ? sfx::sound::CHECK_ON : sfx::sound::CHECK_OFF);
+    setValue(on, true);
 }
 
 void ToggleRow::update(float dt) {
@@ -220,6 +225,21 @@ void SliderRow::onDrag(CCPoint local) {
     m_value = std::clamp((local.x - m_barX) / m_barW, 0.f, 1.f);
     if (m_set) m_set(m_value);
     layoutBar();
+    playTick();
+}
+
+// OsuSliderBar.playSample: at most every 30 ms, only when the shown value
+// changed, pitch rising with the value, and a low "clunk" at either end.
+void SliderRow::playTick() {
+    auto shown = m_format ? m_format(m_value) : std::to_string(m_value);
+    double now = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    if (now - m_lastTickMs <= 30 || shown == m_lastTickValue) return;
+    m_lastTickMs = now;
+    m_lastTickValue = shown;
+
+    float frequency = 1.f + m_value * 0.2f;
+    if (m_value == 0.f || m_value == 1.f) frequency -= 0.5f;
+    sfx::play(sfx::sound::NOTCH_TICK, 0.01f, frequency);
 }
 
 void SliderRow::setHovered(bool hovered) {
@@ -262,11 +282,13 @@ bool ButtonRow::init(std::string const& label, float width, float k, std::functi
 }
 
 void ButtonRow::setHovered(bool hovered) {
+    if (hovered && m_enabled) sfx::hover(sfx::sound::BUTTON_HOVER);
     m_hover.to(hovered ? 1.f : 0.f, 200, Easing::OutQuint);
 }
 
 void ButtonRow::onClick(CCPoint) {
     if (!m_enabled) return;
+    sfx::click(sfx::sound::BUTTON_SELECT);
     m_flash.set(1.f);
     m_flash.to(0.f, 400, Easing::OutQuint);
     if (m_action) m_action();

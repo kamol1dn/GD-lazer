@@ -1,6 +1,7 @@
 #include "MenuButton.hpp"
 
 #include "../audio/AudioAnalyzer.hpp"
+#include "../audio/Sfx.hpp"
 #include "Text.hpp"
 #include "Theme.hpp"
 
@@ -126,6 +127,7 @@ void MenuButton::setHovered(bool hovered) {
     m_hovered = hovered;
 
     if (hovered) {
+        sfx::play(sfx::sound::MENU_BUTTON_HOVER);
         m_rightward = false;
         m_beatTimer = 0;
         float d = m_beatLength / 2;
@@ -236,6 +238,7 @@ void MenuButton::ccTouchEnded(CCTouch* touch, CCEvent*) {
 }
 
 void MenuButton::trigger() {
+    if (m_selectSound) sfx::play(m_selectSound);
     m_hoverFlash.set(0.9f);
     m_hoverFlash.to(0, 800, Easing::OutExpo);
     if (m_explodes) setState(State::Exploded);

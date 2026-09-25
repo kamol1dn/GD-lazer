@@ -41,6 +41,9 @@ public:
     // Whether clicking explodes the button (screen change) or just flashes it (popup).
     void setExplodes(bool v) { m_explodes = v; }
 
+    // Sample played on click (MainMenuButton's per-button `sampleName`).
+    void setSelectSound(char const* sound) { m_selectSound = sound; }
+
     void update(float dt) override;
     void onEnter() override;
     void onExit() override;
@@ -61,6 +64,7 @@ protected:
     std::function<void()> m_callback;
     State m_state = State::Contracted;
     bool m_explodes = true;
+    char const* m_selectSound = nullptr;
     bool m_hovered = false;
     bool m_pressed = false;
     bool m_rightward = false;

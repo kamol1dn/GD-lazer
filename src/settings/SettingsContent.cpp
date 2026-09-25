@@ -108,6 +108,12 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
         },
         percent
     ));
+    overlay->addRow(SliderRow::create(
+        "Interface sounds", w, k,
+        [mod] { return mod->getSettingValue<int64_t>("ui-sound-volume") / 100.f; },
+        [mod](float v) { mod->setSettingValue<int64_t>("ui-sound-volume", int64_t(std::round(v * 100))); },
+        percent
+    ));
     lastPageName.clear();
     for (int page : pagesFor(Home::Audio)) addGDPage(page);
     overlay->addSubsection("Songs");
@@ -178,6 +184,19 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
     );
     trianglesRow->setTooltip("Applies the next time the menu loads.");
     overlay->addRow(trianglesRow);
+
+    overlay->addSubsection("Music");
+    auto musicRow = ToggleRow::create(
+        "Play level songs in the menu", w, k,
+        [mod] { return mod->getSettingValue<bool>("music-player"); },
+        [mod] {
+            bool v = !mod->getSettingValue<bool>("music-player");
+            mod->setSettingValue<bool>("music-player", v);
+            return v;
+        }
+    );
+    musicRow->setTooltip("Plays your downloaded levels' songs instead of the menu theme, with the level's thumbnail as the background. Applies the next time the menu loads.");
+    overlay->addRow(musicRow);
 
     overlay->addSubsection("Mods");
     overlay->addRow(ButtonRow::create("All Lazer UI settings", w, k, [mod] { openSettingsPopup(mod); }));

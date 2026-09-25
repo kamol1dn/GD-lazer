@@ -157,6 +157,10 @@ class $modify(LazerPopup, FLAlertLayer) {
 
     void onEnter() {
         FLAlertLayer::onEnter();
+        // GD's FLAlertLayer::onEnter shares its address with other layers'
+        // identical onEnter (e.g. ProfilePage's comment list), so this hook
+        // also runs for non-popups. Check the real type before touching members.
+        if (!typeinfo_cast<FLAlertLayer*>(static_cast<CCNode*>(this))) return;
         if (m_fields->styled) return;
         m_fields->styled = true;
         if (!Mod::get()->getSettingValue<bool>("restyle-popups")) return;

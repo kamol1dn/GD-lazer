@@ -28,13 +28,39 @@
 			"icons": {
 				"path": "resources/fonts/fa-solid-900.ttf",
 				"size": 96,
-				"charset": "61441,61442,61445,61447,61452,61453,61459,61461,61475,61480,61515,61523,61524,61527,61530,61547,61550,61568,61572,61573,61585,61612,61613,61632,61683,61723,61724,61742,61746,61918,62212,62352,62373,62622,62750,62803,62882"
+				"charset": "61441,61442,61445,61447,61452,61453,61459,61461,61475,61480,61512,61515,61521,61523,61524,61527,61530,61547,61550,61556,61568,61572,61573,61585,61612,61613,61632,61683,61723,61724,61742,61746,61764,61918,62091,62212,62352,62373,62622,62750,62803,62882"
 			}
 		},
 		"files": [
 			"resources/fonts/OFL.txt",
-			"resources/fonts/FontAwesome-LICENSE.txt"
+			"resources/fonts/FontAwesome-LICENSE.txt",
+			"resources/sounds/osu-resources-LICENCE.md",
+			"resources/sounds/menu-back-to-logo.ogg",
+			"resources/sounds/menu-button-default-select.ogg",
+			"resources/sounds/menu-button-hover.ogg",
+			"resources/sounds/menu-button-play-select.ogg",
+			"resources/sounds/menu-osu-logo-downbeat.ogg",
+			"resources/sounds/menu-osu-logo-heartbeat.ogg",
+			"resources/sounds/menu-osu-logo-select.ogg",
+			"resources/sounds/menu-osu-logo-swoosh.ogg",
+			"resources/sounds/ui-button-hover.ogg",
+			"resources/sounds/ui-button-select.ogg",
+			"resources/sounds/ui-button-sidebar-hover.ogg",
+			"resources/sounds/ui-button-sidebar-select.ogg",
+			"resources/sounds/ui-check-off.ogg",
+			"resources/sounds/ui-check-on.ogg",
+			"resources/sounds/ui-default-hover.ogg",
+			"resources/sounds/ui-default-select.ogg",
+			"resources/sounds/ui-notch-tick.ogg",
+			"resources/sounds/ui-overlay-big-pop-out.ogg",
+			"resources/sounds/ui-overlay-pop-in.ogg",
+			"resources/sounds/ui-overlay-pop-out.ogg",
+			"resources/sounds/ui-settings-pop-in.ogg",
+			"resources/sounds/ui-wave-pop-in.ogg"
 		]
+	},
+	"dependencies": {
+		"prevter.imageplus": ">=1.0.0"
 	},
 	"settings": {
 		"enabled": {
@@ -48,6 +74,25 @@
 			"name": "Restyle popups",
 			"description": "Give GD's popups (rewards, confirmations, info boxes...) the dark osu!-style look. Other mods' popups are left alone.",
 			"default": true
+		},
+		"music-player": {
+			"type": "bool",
+			"name": "Menu music player",
+			"description": "Instead of the menu theme, play the songs of your downloaded levels one after another, and show the playing level's thumbnail (from the Level Thumbnails community) as the menu background. The toolbar's music button opens the player.",
+			"default": true
+		},
+		"ui-sound-volume": {
+			"type": "int",
+			"name": "UI sound volume",
+			"description": "Volume of the menu's hover and click sounds, in percent of GD's SFX volume. 0 turns them off.",
+			"default": 100,
+			"min": 0,
+			"max": 100,
+			"control": {
+				"slider": true,
+				"arrows": false,
+				"input": true
+			}
 		},
 		"background-dim": {
 			"type": "int",

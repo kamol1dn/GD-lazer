@@ -2,6 +2,9 @@
 
 #include <Geode/Geode.hpp>
 
+#include <algorithm>
+#include <vector>
+
 using namespace geode::prelude;
 
 namespace lazer {
@@ -28,6 +31,51 @@ CCLabelBMFont* makeText(std::string const& text, Weight weight, float size) {
 
 CCLabelBMFont* makeIcon(char const* glyph, float size) {
     return makeLabel(glyph, "icons.fnt"_spr, size);
+}
+
+// Greedy word wrap using the label's own measurements.
+CCNode* makeWrappedText(std::string const& text, float size, float maxWidth, ccColor3B color) {
+    auto holder = CCNode::create();
+    std::vector<std::string> lines;
+    std::string line, word;
+    auto measure = [&](std::string const& s) {
+        auto l = makeText(s, Weight::Regular, size);
+        return l->getScaledContentSize().width;
+    };
+    auto flushWord = [&] {
+        if (word.empty()) return;
+        std::string candidate = line.empty() ? word : line + " " + word;
+        if (!line.empty() && measure(candidate) > maxWidth) {
+            lines.push_back(line);
+            line = word;
+        } else {
+            line = candidate;
+        }
+        word.clear();
+    };
+    for (char c : text) {
+        if (c == ' ' || c == '\n') {
+            flushWord();
+            if (c == '\n') { lines.push_back(line); line.clear(); }
+        } else {
+            word += c;
+        }
+    }
+    flushWord();
+    if (!line.empty()) lines.push_back(line);
+
+    float lineHeight = size * 1.15f;
+    float width = 0;
+    for (size_t i = 0; i < lines.size(); i++) {
+        auto l = makeText(lines[i], Weight::Regular, size);
+        l->setColor(color);
+        l->setAnchorPoint({0, 1});
+        l->setPosition({0, -lineHeight * i});
+        holder->addChild(l);
+        width = std::max(width, l->getScaledContentSize().width);
+    }
+    holder->setContentSize({width, lineHeight * lines.size()});
+    return holder;
 }
 
 } // namespace lazer

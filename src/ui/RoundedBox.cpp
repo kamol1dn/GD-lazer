@@ -23,15 +23,21 @@ precision highp float;
 #endif
 varying vec2 v_pos;
 uniform vec2 u_size;
-uniform float u_radius;
+uniform vec4 u_radius; // top-right, bottom-right, top-left, bottom-left
 uniform float u_pxPerUnit;
 uniform vec4 u_fill;
 uniform float u_border;
 uniform vec4 u_borderColor;
 uniform float u_shadow;
 uniform vec4 u_shadowColor;
+uniform float u_useTex;
+uniform vec4 u_uv;      // xy = uv of the box's top-left, zw = uv size covered by the box
+uniform float u_shift;  // texture shift, in box widths
+uniform sampler2D CC_Texture0;
 
-float sdRoundBox(vec2 p, vec2 halfSize, float r) {
+float sdRoundBox(vec2 p, vec2 halfSize, vec4 radii) {
+    vec2 side = p.x > 0.0 ? radii.xy : radii.zw;
+    float r = p.y > 0.0 ? side.x : side.y;
     vec2 q = abs(p) - halfSize + r;
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
 }
@@ -44,8 +50,17 @@ void main() {
     float fill = clamp(0.5 - d * u_pxPerUnit, 0.0, 1.0);
     float inner = clamp(0.5 - (d + u_border) * u_pxPerUnit, 0.0, 1.0);
 
+    vec4 fillColor = u_fill;
+    if (u_useTex > 0.5) {
+        vec2 local = v_pos / u_size;
+        local.x -= u_shift;
+        float inside = step(0.0, local.x) * step(local.x, 1.0);
+        vec4 t = texture2D(CC_Texture0, u_uv.xy + vec2(local.x, 1.0 - local.y) * u_uv.zw);
+        fillColor = vec4(t.rgb * u_fill.rgb, t.a * u_fill.a * inside);
+    }
+
     // Premultiplied colours.
-    vec4 body = mix(u_borderColor, u_fill, u_border > 0.0 ? inner : 1.0);
+    vec4 body = mix(u_borderColor, fillColor, u_border > 0.0 ? inner : 1.0);
     body.rgb *= body.a;
     body *= fill;
 
@@ -61,7 +76,7 @@ void main() {
 
     struct Uniforms {
         GLuint program = 0;
-        GLint size, radius, pxPerUnit, fill, border, borderColor, shadow, shadowColor;
+        GLint size, radius, pxPerUnit, fill, border, borderColor, shadow, shadowColor, useTex, uv, shift;
     } g_uniforms;
 
     // Looked up lazily so a re-linked program (e.g. after a GL context reset) is picked up.
@@ -77,6 +92,9 @@ void main() {
             glGetUniformLocation(id, "u_borderColor"),
             glGetUniformLocation(id, "u_shadow"),
             glGetUniformLocation(id, "u_shadowColor"),
+            glGetUniformLocation(id, "u_useTex"),
+            glGetUniformLocation(id, "u_uv"),
+            glGetUniformLocation(id, "u_shift"),
         };
     }
 
@@ -126,6 +144,12 @@ bool RoundedBox::init(CCSize size, float radius, ccColor4B color) {
     return true;
 }
 
+void RoundedBox::setTexture(CCTexture2D* texture) {
+    if (texture) texture->retain();
+    CC_SAFE_RELEASE(m_texture);
+    m_texture = texture;
+}
+
 void RoundedBox::draw() {
     auto size = this->getContentSize();
     if (size.width <= 0 || size.height <= 0) return;
@@ -149,16 +173,33 @@ void RoundedBox::draw() {
 
     float alpha = this->getDisplayedOpacity() / 255.f;
     auto tint = this->getDisplayedColor();
-    float radius = std::min(m_radius, std::min(size.width, size.height) * 0.5f);
+    float maxRadius = std::min(size.width, size.height) * 0.5f;
+    auto corner = [&](float r) { return std::min(r < 0 ? m_radius : r, maxRadius); };
 
     glUniform2f(g_uniforms.size, size.width, size.height);
-    glUniform1f(g_uniforms.radius, radius);
+    glUniform4f(g_uniforms.radius, corner(m_corners.tr), corner(m_corners.br), corner(m_corners.tl), corner(m_corners.bl));
     glUniform1f(g_uniforms.pxPerUnit, pxPerUnit);
     uniformColor(g_uniforms.fill, m_fill, alpha, tint);
     glUniform1f(g_uniforms.border, m_borderWidth);
     uniformColor(g_uniforms.borderColor, m_borderColor, alpha, tint);
     glUniform1f(g_uniforms.shadow, m_shadowSize);
     uniformColor(g_uniforms.shadowColor, m_shadowColor, alpha, {255, 255, 255});
+
+    glUniform1f(g_uniforms.useTex, m_texture ? 1.f : 0.f);
+    if (m_texture) {
+        // FillMode.Fill: crop the texture to the box's aspect ratio, centred.
+        auto tex = m_texture->getContentSizeInPixels();
+        float boxAspect = size.width / size.height;
+        float texAspect = tex.height > 0 ? tex.width / tex.height : 1.f;
+        float uw = 1.f, uh = 1.f;
+        if (texAspect > boxAspect) uw = boxAspect / texAspect;
+        else uh = texAspect / boxAspect;
+        // NPOT textures may be padded: only [0, maxS] x [0, maxT] holds the image.
+        float maxS = m_texture->getMaxS(), maxT = m_texture->getMaxT();
+        glUniform4f(g_uniforms.uv, (1 - uw) / 2 * maxS, (1 - uh) / 2 * maxT, uw * maxS, uh * maxT);
+        glUniform1f(g_uniforms.shift, m_textureShift);
+        ccGLBindTexture2D(m_texture->getName());
+    }
 
     ccGLEnableVertexAttribs(kCCVertexAttribFlag_Position);
     glVertexAttribPointer(kCCVertexAttrib_Position, 2, GL_FLOAT, GL_FALSE, 0, verts);

@@ -1,11 +1,18 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/MenuLayer.hpp>
 
+#include "audio/MusicPlayer.hpp"
 #include "settings/SettingsContent.hpp"
+#include "ui/AchievementsOverlay.hpp"
 #include "ui/ButtonSystem.hpp"
+#include "ui/LevelThumbnails.hpp"
 #include "ui/MenuBackground.hpp"
+#include "ui/NowPlayingOverlay.hpp"
 #include "ui/RewardsOverlay.hpp"
 #include "ui/SettingsOverlay.hpp"
+#include "ui/SideFlashes.hpp"
+#include "ui/SongTicker.hpp"
+#include "ui/StatsOverlay.hpp"
 #include "ui/Text.hpp"
 #include "ui/Toolbar.hpp"
 
@@ -37,9 +44,11 @@ namespace {
     std::unordered_map<std::string, KnownButton> const KNOWN_BUTTONS {
         {"achievements-button", {icon::TROPHY, "achievements"}},
         {"stats-button", {icon::CHART, "statistics"}},
-        {"newgrounds-button", {icon::MUSIC, "newgrounds"}},
+        {"newgrounds-button", {icon::MUSIC, "now playing"}},
         {"daily-chest-button", {icon::GIFT, "daily chests"}},
         {"geode.loader/geode-button", {icon::PUZZLE, "mods"}},
+        // Globed (multiplayer mod): its button just says "main menu" otherwise.
+        {"dankmeme.globed2/main-menu-button", {icon::GLOBE, "multiplayer"}},
     };
     // Already covered elsewhere (button bar / user section), so not duplicated.
     constexpr std::array SKIPPED_BUTTONS {"settings-button", "profile-button"};
@@ -60,6 +69,11 @@ class $modify(LazerMenuLayer, MenuLayer) {
         lazer::MenuBackground* background = nullptr;
         lazer::SettingsOverlay* settings = nullptr;
         lazer::RewardsOverlay* rewards = nullptr;
+        lazer::AchievementsOverlay* achievements = nullptr;
+        lazer::StatsOverlay* stats = nullptr;
+        lazer::NowPlayingOverlay* nowPlaying = nullptr;
+        lazer::SongTicker* ticker = nullptr;
+        int backgroundRequest = 0; // newest thumbnail request; older results are dropped
     };
 
     bool init() {
@@ -86,7 +100,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
                 {"settings", icon::GEAR, {85, 85, 85}, [this] { this->toggleSettings(); }, false},
             },
             {
-                {"play", icon::PLAY, {102, 68, 204}, leave([this] { this->onPlay(nullptr); })},
+                {"play", icon::PLAY, {102, 68, 204}, leave([this] { this->onPlay(nullptr); }), true, lazer::sfx::sound::MENU_PLAY_SELECT},
                 {"create", icon::PEN, {238, 170, 0}, leave([this] { this->onCreator(nullptr); })},
                 {"icons", icon::SHIRT, {165, 204, 0}, leave([this] { this->onGarage(nullptr); })},
                 {"exit", icon::CIRCLE_XMARK, {238, 51, 153}, [this] { this->onQuit(nullptr); }, false},
@@ -109,6 +123,18 @@ class $modify(LazerMenuLayer, MenuLayer) {
             if (state == ButtonSystem::State::Initial) toolbar->hide();
             else toolbar->show();
         });
+
+        // Song ticker at the top right, under the toolbar.
+        auto win = CCDirector::sharedDirector()->getWinSize();
+        float k = win.height / 768.f;
+        auto ticker = lazer::SongTicker::create(k);
+        ticker->setPosition({win.width - 15 * k, win.height - toolbar->height() - 5 * k});
+        this->addChild(ticker, 12);
+        m_fields->ticker = ticker;
+
+        // Follow the music: new song -> ticker + that level's thumbnail as the background.
+        this->addChild(lazer::MusicListener::create([this](auto track, auto) { this->onTrackChanged(track); }));
+        if (lazer::MusicPlayer::get().isActive()) this->onTrackChanged(lazer::MusicPlayer::get().current());
 
         // Collect vanilla + mod buttons next frame, after other mods' MenuLayer hooks ran.
         Loader::get()->queueInMainThread([self = Ref(this)] {
@@ -134,6 +160,8 @@ class $modify(LazerMenuLayer, MenuLayer) {
             mod->getSettingValue<bool>("background-triangles")
         );
         bg->setID("background"_spr);
+        // Beat flashes at the screen edges, over the background.
+        bg->addChild(lazer::SideFlashes::create(), 3);
         m_fields->background = bg;
         // Draw right after GD's background, before everything else at the same z.
         this->addChild(bg, source->getZOrder());
@@ -170,6 +198,12 @@ class $modify(LazerMenuLayer, MenuLayer) {
                 std::function<void()> action = [target] { target->activate(); };
                 // Daily chests get our own overlay instead of GD's popup.
                 if (id == "daily-chest-button") action = [this] { this->toggleRewards(); };
+                if (id == "achievements-button") action = [this] { this->toggleAchievements(); };
+                if (id == "stats-button") action = [this] { this->toggleStats(); };
+                // The music button opens the player (GD's song browser is in settings > audio).
+                if (id == "newgrounds-button" && Mod::get()->getSettingValue<bool>("music-player")) {
+                    action = [this] { this->toggleNowPlaying(); };
+                }
                 toolbar->addRight({iconNode, tooltip, action});
             }
             menu->setVisible(false);
@@ -203,7 +237,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
         if (settings->isOpen()) {
             settings->close();
         } else {
-            if (m_fields->rewards) m_fields->rewards->close();
+            closeOverlaysExcept(settings);
             settings->open();
         }
     }
@@ -218,15 +252,87 @@ class $modify(LazerMenuLayer, MenuLayer) {
         if (rewards->isOpen()) {
             rewards->close();
         } else {
-            if (m_fields->settings) m_fields->settings->close();
+            closeOverlaysExcept(rewards);
             rewards->open();
         }
     }
 
+    void toggleAchievements() {
+        auto& achievements = m_fields->achievements;
+        if (!achievements) {
+            achievements = lazer::AchievementsOverlay::create(m_fields->toolbar ? m_fields->toolbar->height() : 0);
+            achievements->setID("achievements"_spr);
+            this->addChild(achievements, 16);
+        }
+        if (achievements->isOpen()) {
+            achievements->close();
+        } else {
+            closeOverlaysExcept(achievements);
+            achievements->open();
+        }
+    }
+
+    void toggleStats() {
+        auto& stats = m_fields->stats;
+        if (!stats) {
+            stats = lazer::StatsOverlay::create(m_fields->toolbar ? m_fields->toolbar->height() : 0);
+            stats->setID("statistics"_spr);
+            this->addChild(stats, 16);
+        }
+        if (stats->isOpen()) {
+            stats->close();
+        } else {
+            closeOverlaysExcept(stats);
+            stats->open();
+        }
+    }
+
+    // Full-screen overlays replace each other, like osu!'s.
+    void closeOverlaysExcept(CCNode* keep) {
+        auto& f = m_fields;
+        if (f->settings && f->settings != keep) f->settings->close();
+        if (f->rewards && f->rewards != keep) f->rewards->close();
+        if (f->achievements && f->achievements != keep) f->achievements->close();
+        if (f->stats && f->stats != keep) f->stats->close();
+    }
+
+    void onTrackChanged(lazer::MusicPlayer::Track const* track) {
+        auto nowPlaying = m_fields->nowPlaying;
+        if (m_fields->ticker && !(nowPlaying && nowPlaying->isOpen())) m_fields->ticker->show(track);
+
+        if (!m_fields->background) return;
+        int request = ++m_fields->backgroundRequest;
+        if (!track) {
+            m_fields->background->setImage(nullptr);
+            return;
+        }
+        // No thumbnail for any of the song's levels: keep GD's own menu scene.
+        Ref<MenuLayer> self = this;
+        lazer::thumbnails::fetchFirst(track->levelIDs(), [self, request](CCTexture2D* texture, int) {
+            auto layer = static_cast<LazerMenuLayer*>(self.data());
+            if (layer->m_fields->backgroundRequest != request || !layer->m_fields->background) return;
+            layer->m_fields->background->setImage(texture);
+        });
+    }
+
+    void toggleNowPlaying() {
+        auto& nowPlaying = m_fields->nowPlaying;
+        if (!nowPlaying) {
+            nowPlaying = lazer::NowPlayingOverlay::create(m_fields->toolbar ? m_fields->toolbar->height() : 0);
+            nowPlaying->setID("now-playing"_spr);
+            this->addChild(nowPlaying, 18);
+        }
+        nowPlaying->toggle();
+        if (nowPlaying->isOpen() && m_fields->ticker) m_fields->ticker->hide();
+    }
+
     void keyBackClicked() {
         // Escape closes overlays, then collapses the button bar (like osu!), then GD's quit prompt.
+        if (m_fields->nowPlaying && m_fields->nowPlaying->back()) return;
         if (m_fields->settings && m_fields->settings->back()) return;
         if (m_fields->rewards && m_fields->rewards->back()) return;
+        if (m_fields->achievements && m_fields->achievements->back()) return;
+        if (m_fields->stats && m_fields->stats->back()) return;
         if (m_fields->buttons && m_fields->buttons->back()) return;
         MenuLayer::keyBackClicked();
     }

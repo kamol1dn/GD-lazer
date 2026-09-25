@@ -124,4 +124,35 @@ void ScrollArea::visit() {
     else glDisable(GL_SCISSOR_TEST);
 }
 
+void ScrollDragger::began(ScrollArea* area, CCPoint loc) {
+    m_area = area && area->containsWorldPoint(loc) ? area : nullptr;
+    m_start = m_last = loc;
+    m_dragging = false;
+    m_velocity = 0;
+}
+
+bool ScrollDragger::moved(CCPoint loc) {
+    if (!m_area) return false;
+    float dy = loc.y - m_last.y;
+    m_last = loc;
+    if (!m_dragging && ccpDistance(loc, m_start) > m_threshold) {
+        m_dragging = true;
+        m_area->beginDrag();
+    }
+    if (!m_dragging) return false;
+    // Content follows the finger: dragging up scrolls down.
+    m_area->dragBy(dy);
+    float dt = CCDirector::sharedDirector()->getDeltaTime();
+    if (dt > 0) m_velocity = m_velocity * 0.5f + (dy / dt) * 0.5f;
+    return true;
+}
+
+bool ScrollDragger::ended() {
+    bool was = m_dragging;
+    if (m_dragging && m_area) m_area->endDrag(m_velocity);
+    m_dragging = false;
+    m_area = nullptr;
+    return was;
+}
+
 } // namespace lazer
