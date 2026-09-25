@@ -1,11 +1,11 @@
-[!NOTE]
-This is a completely vibecoded side project. I made it because I wanted Geometry Dash to look and feel more like osu!lazer.
-
-I don't plan to submit this to Geode's official mod repository. It's experimental, messy, and definitely not polished enough for that. If you want to try it anyway, you can install it manually.
-
-Treat this more like a fun prototype than a production-ready mod.
-
 # Lazer UI
+
+> [!IMPORTANT]
+> **This is a completely vibecoded project.** It was built almost entirely with AI, as a personal experiment to make Geometry Dash look and feel like osu!lazer.
+>
+> **It is not intended for Geode's official mod index, and never will be.** Please do not submit it there or ask for it to be added.
+>
+> Any `.geode` file shared from this repo is a **local build** I made on my machine. It has not been reviewed by Geode, so install it manually and at your own risk.
 
 A Geode mod that rebuilds Geometry Dash's menus in the style of osu!lazer: a music-reactive main menu, a song-select screen for your levels, full-screen overlays for settings, chests, achievements and stats, and an intro and outro, all animated and with sounds.
 
@@ -62,7 +62,7 @@ None of these are required. The matching extras appear when a mod is installed.
 
 [Image Plus](https://github.com/Prevter/ImagePlus) (`prevter.imageplus`) is required, to decode the WebP thumbnails.
 
-## Notes for reviewers
+## How it works
 
 - **`early-load`** is set so the mod can restyle GD's loading screen from its first frame. Nothing else runs early. At that point the mod's own resources aren't loaded yet, so the loading screen is drawn entirely in code.
 - **GD layers run hidden.** Several overlays drive GD's own layers (RewardsPage, ProfilePage, AccountLayer, CreatorLayer...) kept hidden and non-interactive, and call their handlers. GD's logic, networking and saving are never reimplemented.
