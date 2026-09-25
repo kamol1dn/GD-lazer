@@ -1,3 +1,10 @@
+[!NOTE]
+This is a completely vibecoded side project. I made it because I wanted Geometry Dash to look and feel more like osu!lazer.
+
+I don't plan to submit this to Geode's official mod repository. It's experimental, messy, and definitely not polished enough for that. If you want to try it anyway, you can install it manually.
+
+Treat this more like a fun prototype than a production-ready mod.
+
 # Lazer UI
 
 A Geode mod that rebuilds Geometry Dash's menus in the style of osu!lazer: a music-reactive main menu, a song-select screen for your levels, full-screen overlays for settings, chests, achievements and stats, and an intro and outro, all animated and with sounds.
