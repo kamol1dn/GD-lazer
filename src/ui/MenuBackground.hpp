@@ -14,6 +14,7 @@ public:
     // (through the blur) when blur is on.
     static MenuBackground* create(cocos2d::CCNode* source, float dim, bool blur, bool triangles);
 
+    void setDim(float dim);
     void visit() override;
     ~MenuBackground() override { CC_SAFE_RELEASE(m_rt); }
 
@@ -24,6 +25,7 @@ protected:
     cocos2d::CCNode* m_source = nullptr;
     cocos2d::CCRenderTexture* m_rt = nullptr;
     cocos2d::CCSprite* m_blurred = nullptr;
+    cocos2d::CCLayerColor* m_dim = nullptr;
 };
 
 } // namespace lazer

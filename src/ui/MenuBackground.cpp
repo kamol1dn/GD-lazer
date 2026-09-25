@@ -121,11 +121,10 @@ bool MenuBackground::init(CCNode* source, float dim, bool blur, bool triangles) 
         }
     }
 
-    if (dim > 0) {
-        auto dimLayer = CCLayerColor::create({0, 0, 0, static_cast<GLubyte>(std::clamp(dim, 0.f, 1.f) * 255)});
-        dimLayer->setContentSize(win);
-        this->addChild(dimLayer, 1);
-    }
+    m_dim = CCLayerColor::create({0, 0, 0, 0});
+    m_dim->setContentSize(win);
+    this->addChild(m_dim, 1);
+    setDim(dim);
 
     if (triangles) {
         float k = win.height / 768.f;
@@ -135,6 +134,10 @@ bool MenuBackground::init(CCNode* source, float dim, bool blur, bool triangles) 
         this->addChild(tri, 2);
     }
     return true;
+}
+
+void MenuBackground::setDim(float dim) {
+    m_dim->setOpacity(static_cast<GLubyte>(std::clamp(dim, 0.f, 1.f) * 255));
 }
 
 void MenuBackground::visit() {

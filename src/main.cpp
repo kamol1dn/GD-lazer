@@ -1,8 +1,10 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/MenuLayer.hpp>
 
+#include "settings/SettingsContent.hpp"
 #include "ui/ButtonSystem.hpp"
 #include "ui/MenuBackground.hpp"
+#include "ui/SettingsOverlay.hpp"
 #include "ui/Text.hpp"
 #include "ui/Toolbar.hpp"
 
@@ -54,6 +56,8 @@ class $modify(LazerMenuLayer, MenuLayer) {
     struct Fields {
         ButtonSystem* buttons = nullptr;
         lazer::Toolbar* toolbar = nullptr;
+        lazer::MenuBackground* background = nullptr;
+        lazer::SettingsOverlay* settings = nullptr;
     };
 
     bool init() {
@@ -77,7 +81,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
 
         auto buttons = ButtonSystem::create(
             {
-                {"settings", icon::GEAR, {85, 85, 85}, [this] { this->onOptions(nullptr); }, false},
+                {"settings", icon::GEAR, {85, 85, 85}, [this] { this->toggleSettings(); }, false},
             },
             {
                 {"play", icon::PLAY, {102, 68, 204}, leave([this] { this->onPlay(nullptr); })},
@@ -95,7 +99,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
         this->addChild(toolbar, 20);
         m_fields->toolbar = toolbar;
 
-        toolbar->addLeft({lazer::makeIcon(icon::GEAR, 1), "settings", [this] { this->onOptions(nullptr); }});
+        toolbar->addLeft({lazer::makeIcon(icon::GEAR, 1), "settings", [this] { this->toggleSettings(); }});
         toolbar->addLeft({lazer::makeIcon(icon::HOUSE, 1), "home", [buttons] { buttons->back(); }});
 
         buttons->setStateCallback([toolbar](ButtonSystem::State state) {
@@ -128,6 +132,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
             mod->getSettingValue<bool>("background-triangles")
         );
         bg->setID("background"_spr);
+        m_fields->background = bg;
         // Draw right after GD's background, before everything else at the same z.
         this->addChild(bg, source->getZOrder());
         bg->setOrderOfArrival(source->getOrderOfArrival());
@@ -181,8 +186,22 @@ class $modify(LazerMenuLayer, MenuLayer) {
         });
     }
 
+    void toggleSettings() {
+        auto& settings = m_fields->settings;
+        if (!settings) {
+            // Built on first use: it reads GD's option list from a hidden options layer.
+            settings = lazer::SettingsOverlay::create(m_fields->toolbar ? m_fields->toolbar->height() : 0);
+            settings->setID("settings"_spr);
+            lazer::buildSettings(settings, this, m_fields->background);
+            this->addChild(settings, 15);
+        }
+        if (settings->isOpen()) settings->close();
+        else settings->open();
+    }
+
     void keyBackClicked() {
-        // Escape collapses the button bar first, like osu!; only then the quit prompt.
+        // Escape closes overlays, then collapses the button bar (like osu!), then GD's quit prompt.
+        if (m_fields->settings && m_fields->settings->back()) return;
         if (m_fields->buttons && m_fields->buttons->back()) return;
         MenuLayer::keyBackClicked();
     }

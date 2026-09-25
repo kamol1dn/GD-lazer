@@ -2,6 +2,7 @@
 
 #include "../audio/AudioAnalyzer.hpp"
 #include "Text.hpp"
+#include "Theme.hpp"
 
 #include <Geode/utils/cocos.hpp>
 #include <cmath>
@@ -109,7 +110,7 @@ void MenuButton::setState(State state, int contractStyle) {
 }
 
 bool MenuButton::acceptsInput() {
-    return m_state == State::Expanded && this->isVisible()
+    return m_state == State::Expanded && this->isVisible() && !g_overlayOpen
         && m_width.get() / m_style.width >= 0.8f;
 }
 
