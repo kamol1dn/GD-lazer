@@ -1,5 +1,6 @@
 #include <Geode/Geode.hpp>
 #include <Geode/modify/CreatorLayer.hpp>
+#include <Geode/modify/LevelBrowserLayer.hpp>
 #include <Geode/modify/MenuLayer.hpp>
 
 #include "audio/MusicPlayer.hpp"
@@ -15,6 +16,7 @@
 #include "ui/menu/SideFlashes.hpp"
 #include "ui/menu/SongTicker.hpp"
 #include "ui/menu/Toolbar.hpp"
+#include "ui/select/SongSelect.hpp"
 #include "ui/overlays/AchievementsOverlay.hpp"
 #include "ui/overlays/RewardsOverlay.hpp"
 #include "ui/overlays/SettingsOverlay.hpp"
@@ -118,6 +120,7 @@ namespace {
 // reached from the button system and the toolbar, through a hidden instance
 // (its handlers show GD's own screens and popups).
 void creatorAction(void (CreatorLayer::*handler)(CCObject*)) {
+    log::debug("Creator hub action");
     static Ref<CreatorLayer> layer;
     layer = CreatorLayer::create();
     if (!layer) return;
@@ -129,12 +132,46 @@ void creatorAction(void (CreatorLayer::*handler)(CCObject*)) {
             layer->addChild(*sprite);
         }
     }
-    (layer.data()->*handler)(nullptr);
+    // Handlers use the button that was clicked (quests reads it straight
+    // away): hand them the hub's own button wired to the same handler.
+    // Fallback: a stand-in menu button with an image (quests reads the
+    // button's image to clear its "!" badge).
+    auto menu = CCMenu::create();
+    auto standIn = CCMenuItemSpriteExtra::create(CCSprite::create(), nullptr, nullptr);
+    menu->addChild(standIn);
+    layer->addChild(menu);
+    CCObject* sender = standIn;
+    auto target = static_cast<SEL_MenuHandler>(handler);
+    std::function<CCMenuItem*(CCNode*)> find = [&](CCNode* node) -> CCMenuItem* {
+        for (auto child : CCArrayExt<CCNode*>(node->getChildren())) {
+            if (auto item = typeinfo_cast<CCMenuItem*>(child); item && item->m_pfnSelector == target) return item;
+            if (auto found = find(child)) return found;
+        }
+        return nullptr;
+    };
+    if (auto item = find(layer.data())) sender = item;
+    (layer.data()->*handler)(sender);
 }
 
 void showScene(CCScene* scene) {
     CCDirector::get()->replaceScene(CCTransitionFade::create(0.5f, scene));
 }
+
+// Set by "new level": leaving that level's page goes back to the create menu
+// rather than GD's "my levels" list.
+bool g_newLevelFlow = false;
+
+class $modify(LazerLevelBrowser, LevelBrowserLayer) {
+    static CCScene* scene(GJSearchObject* search) {
+        if (g_newLevelFlow && search && search->m_searchType == SearchType::MyLevels
+            && Mod::get()->getSettingValue<bool>("enabled")) {
+            g_newLevelFlow = false;
+            g_returnState = ButtonSystem::State::Create;
+            return MenuLayer::scene(false);
+        }
+        return LevelBrowserLayer::scene(search);
+    }
+};
 
 // Screens that go "back" to CreatorLayer come back to the menu instead.
 class $modify(LazerCreatorLayer, CreatorLayer) {
@@ -142,6 +179,7 @@ class $modify(LazerCreatorLayer, CreatorLayer) {
         auto mod = Mod::get();
         if (!mod->getSettingValue<bool>("enabled")) return CreatorLayer::scene();
         if (g_returnState == ButtonSystem::State::Initial) g_returnState = ButtonSystem::State::TopLevel;
+        log::debug("CreatorLayer::scene -> menu (return {})", static_cast<int>(g_returnState));
         return MenuLayer::scene(false);
     }
 };
@@ -169,6 +207,9 @@ class $modify(LazerMenuLayer, MenuLayer) {
         if (intro) lazer::MusicPlayer::get().holdForIntro();
 
         if (!MenuLayer::init()) return false;
+        g_newLevelFlow = false;
+        // Back at the menu: gameplay no longer returns to song select.
+        lazer::SongSelect::returnsHere() = false;
         if (!mod->getSettingValue<bool>("enabled")) return true;
 
         for (auto id : HIDDEN_NODES) {
@@ -210,9 +251,10 @@ class $modify(LazerMenuLayer, MenuLayer) {
             {"exit", icon::CIRCLE_XMARK, {238, 51, 153}, [this] { this->onQuit(nullptr); }, false},
 
             // play: everything you can play right away
-            {"solo", icon::RUNNING, {102, 68, 204}, leave(State::Play, [this] { this->onPlay(nullptr); }), true,
-             lazer::sfx::sound::MENU_PLAY_SELECT, State::Play},
-            {"saved", icon::BOOKMARK, PLAY_SUB, creator(State::Play, &CreatorLayer::onSavedLevels), true, defaultSound, State::Play},
+            // Song select: RobTop's levels and your saved ones in one list.
+            {"main levels", icon::RUNNING, {102, 68, 204}, leave(State::Play, [] {
+                showScene(lazer::SongSelect::scene());
+            }), true, lazer::sfx::sound::MENU_PLAY_SELECT, State::Play},
             {"daily", icon::CALENDAR_DAY, PLAY_SUB, [] { creatorAction(&CreatorLayer::onDailyLevel); }, false, defaultSound, State::Play},
             {"gauntlets", icon::FIST, PLAY_SUB, creator(State::Play, &CreatorLayer::onGauntlets), true, defaultSound, State::Play},
             {"map packs", icon::BOXES, PLAY_SUB, creator(State::Play, &CreatorLayer::onMapPacks), true, defaultSound, State::Play},
@@ -221,6 +263,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
             // create: your own levels
             {"my levels", icon::FOLDER_OPEN, {238, 170, 0}, creator(State::Create, &CreatorLayer::onMyLevels), true, defaultSound, State::Create},
             {"new level", icon::SQUARE_PLUS, CREATE_SUB, leave(State::Create, [] {
+                g_newLevelFlow = true;
                 showScene(EditLevelLayer::scene(GameLevelManager::get()->createNewLevel()));
             }), true, defaultSound, State::Create},
             {"my lists", icon::LIST, CREATE_SUB, leave(State::Create, [] {
@@ -248,6 +291,8 @@ class $modify(LazerMenuLayer, MenuLayer) {
         toolbar->addLeft({lazer::makeIcon(icon::HOUSE, 1), "home", [buttons] { buttons->back(); }});
 
         buttons->setStateCallback([toolbar](ButtonSystem::State state) {
+            // Back in a menu: nothing left to restore on the next menu load.
+            if (state != ButtonSystem::State::EnteringMode) g_returnState = ButtonSystem::State::Initial;
             // osu! shows the toolbar once the logo lands in the button bar.
             if (state == ButtonSystem::State::Initial) toolbar->hide();
             else toolbar->show();
@@ -270,6 +315,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
             static_cast<LazerMenuLayer*>(self.data())->collectToolbarButtons();
         });
 
+        log::debug("Menu init: return {}", static_cast<int>(g_returnState));
         if (g_returnState != ButtonSystem::State::Initial) {
             buttons->resume(g_returnState);
             g_returnState = ButtonSystem::State::Initial;
@@ -285,17 +331,6 @@ class $modify(LazerMenuLayer, MenuLayer) {
             this->addChild(sequence, 1000);
         }
         return true;
-    }
-
-    // Some screens (solo's level select) are pushed over the menu rather than
-    // replacing it, so going back returns to this same layer mid-"leaving".
-    void onEnter() {
-        MenuLayer::onEnter();
-        auto buttons = m_fields->buttons;
-        if (buttons && buttons->getState() == ButtonSystem::State::EnteringMode) {
-            buttons->resume(g_returnState);
-            g_returnState = ButtonSystem::State::Initial;
-        }
     }
 
     void onQuit(CCObject* sender) {

@@ -39,6 +39,7 @@ namespace icon {
     constexpr auto CIRCLE_XMARK = "\xEF\x81\x97";   // f057
     constexpr auto CIRCLE_INFO = "\xEF\x81\x9A";    // f05a
     constexpr auto BAN = "\xEF\x81\x9E";            // f05e
+    constexpr auto ARROW_UP = "\xEF\x81\xA2";       // f062
     constexpr auto PLUS = "\xEF\x81\xA7";           // f067
     constexpr auto GIFT = "\xEF\x81\xAB";           // f06b
     constexpr auto EYE = "\xEF\x81\xAE";            // f06e

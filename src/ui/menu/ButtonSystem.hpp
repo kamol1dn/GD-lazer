@@ -57,6 +57,9 @@ public:
     bool back();
 
     void update(float dt) override;
+    // Screens pushed over the menu pop back to this same node, still leaving:
+    // unfold the menu we left from.
+    void onEnter() override;
 
 protected:
     struct Entry {
@@ -94,6 +97,7 @@ protected:
     Tweened<float> m_logoScale {1.f};
     Tweened<float> m_logoRotation {0.f};
     bool m_exiting = false;
+    State m_leftFrom = State::TopLevel; // menu a leaving button was pressed in
     Tweened<float> m_barAlpha {0.f};
     Tweened<float> m_barScaleX {2.f};
     Tweened<float> m_barScaleY {0.f};

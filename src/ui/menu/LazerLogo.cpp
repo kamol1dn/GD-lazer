@@ -123,12 +123,8 @@ void LazerLogo::update(float dt) {
     if (audio.beatIndex() != m_lastBeat) {
         m_lastBeat = audio.beatIndex();
         onBeat(audio.amplitude(), audio.beatLength());
-        // Hovered logo "heartbeat". Detected beats have no bar position, so
-        // assume 4/4 and count from the first beat.
-        if (m_hovered && m_callback) {
-            if (m_lastBeat % 4 == 0) sfx::play(sfx::sound::LOGO_DOWNBEAT);
-            else sfx::play(sfx::sound::LOGO_HEARTBEAT, 0.05f); // BeatSampleVariance / 2
-        }
+        // osu!'s hovered-logo heartbeat is left out on purpose: with detected
+        // (not mapped) beats it drifts against the music and gets distracting.
     }
     if (m_beatSecondPhaseMs >= 0) {
         m_beatSecondPhaseMs -= ms;

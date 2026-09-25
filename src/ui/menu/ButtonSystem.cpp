@@ -2,6 +2,8 @@
 
 #include "../core/Text.hpp"
 
+#include <Geode/loader/Log.hpp>
+
 using namespace cocos2d;
 
 namespace lazer {
@@ -88,6 +90,7 @@ MenuButton* ButtonSystem::makeButton(ButtonDef const& def) {
         [this, action, leaves] {
             if (leaves) {
                 State from = m_state;
+                m_leftFrom = from;
                 this->setState(State::EnteringMode);
                 // GD sometimes stays put (a locked mode shows a popup instead):
                 // if we're still the running scene a moment later, unfold again.
@@ -96,7 +99,9 @@ MenuButton* ButtonSystem::makeButton(ButtonDef const& def) {
                     auto director = cocos2d::CCDirector::sharedDirector();
                     CCNode* scene = this;
                     while (scene->getParent()) scene = scene->getParent();
-                    if (director->getRunningScene() == scene && !director->getNextScene()) this->resume(from);
+                    bool stayed = director->getRunningScene() == scene && !director->getNextScene();
+                    geode::log::debug("Button system: left menu? {}", !stayed);
+                    if (stayed) this->resume(from);
                 });
             }
             if (action) action();
@@ -136,6 +141,7 @@ void ButtonSystem::setState(State state) {
     if (state == m_state) return;
     State last = m_state;
     m_state = state;
+    geode::log::debug("Button system: {} -> {}", static_cast<int>(last), static_cast<int>(state));
     if (m_stateCallback) m_stateCallback(state);
 
     // --- logo (ButtonSystem.updateLogoState) ---
@@ -202,6 +208,14 @@ void ButtonSystem::resume(State state) {
     m_logoPos.set(m_logoTarget);
     m_logoScale.set(LOGO_TOPLEVEL_SCALE);
     setState(isMenu(state) ? state : State::TopLevel);
+}
+
+void ButtonSystem::onEnter() {
+    CCNode::onEnter();
+    if (m_state == State::EnteringMode) {
+        geode::log::debug("Button system: back on the menu, unfolding {}", static_cast<int>(m_leftFrom));
+        resume(m_leftFrom);
+    }
 }
 
 void ButtonSystem::playExit(float durationMs) {
