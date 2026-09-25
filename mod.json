@@ -1,7 +1,8 @@
 {
 	"geode": "5.10.1",
 	"gd": {
-		"win": "2.2081"
+		"win": "2.2081",
+		"android": "2.2081"
 	},
 	"id": "kamol1dn.lazer-ui",
 	"early-load": true,

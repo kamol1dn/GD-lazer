@@ -12,6 +12,8 @@
 
 #ifdef GEODE_IS_WINDOWS
 #include <Windows.h>
+#else
+#include <dlfcn.h>
 #endif
 
 using namespace geode::prelude;
@@ -32,7 +34,11 @@ namespace {
         auto vtable = *reinterpret_cast<uintptr_t*>(obj);
         return vtable >= start && vtable < end;
 #else
-        return true;
+        // The vtable lives in whichever binary defines the class: GD's own
+        // (libcocos2dcpp.so on Android) or another mod's library.
+        Dl_info info {};
+        if (!dladdr(*reinterpret_cast<void**>(obj), &info)) return false;
+        return reinterpret_cast<uintptr_t>(info.dli_fbase) == geode::base::get();
 #endif
     }
 

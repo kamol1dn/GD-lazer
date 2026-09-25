@@ -147,10 +147,13 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
 
     // --- Graphics ---
     overlay->beginSection("Graphics", icon::DESKTOP);
+#ifdef GEODE_IS_DESKTOP
+    // GD's mobile builds have no video options (or keybindings) screen.
     overlay->addSubsection("Display");
     overlay->addRow(ButtonRow::create("Resolution, fullscreen & texture quality", w, k, [] {
         VideoOptionsLayer::create()->show();
     }));
+#endif
     lastPageName.clear();
     for (int page : pagesFor(Home::Graphics)) addGDPage(page);
 
@@ -160,9 +163,11 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
     for (int page : pagesFor(Home::Gameplay)) addGDPage(page);
 
     // --- Input ---
+#ifdef GEODE_IS_DESKTOP
     overlay->beginSection("Input", icon::KEYBOARD);
     overlay->addSubsection("Keyboard");
     overlay->addRow(ButtonRow::create("Keybindings", w, k, [gd] { gd->layer()->onKeybindings(nullptr); }));
+#endif
 
     // --- Other GD pages ---
     auto others = pagesFor(Home::Other);

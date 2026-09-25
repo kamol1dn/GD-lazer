@@ -9,17 +9,42 @@ on:
 
 jobs:
   build:
-    name: Windows
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: Windows
+            os: windows-latest
+          - name: Android32
+            os: ubuntu-latest
+            target: Android32
+          - name: Android64
+            os: ubuntu-latest
+            target: Android64
+
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Build the mod
-        id: build
         uses: geode-sdk/build-geode-mod@main
         with:
           # use the SDK version from mod.json
           sdk: given
+          combine: true
+          target: ${{ matrix.config.target }}
+          # r30+ libc++ needs std::__hash_memory, which Geode's libc++_shared.so lacks
+          android-ndk-version: 29.0.14206865
+
+  package:
+    # merge the per-platform builds into one .geode
+    name: Package
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: geode-sdk/build-geode-mod/combine@main
+        id: build
 
       - uses: actions/upload-artifact@v4
         with:
@@ -30,7 +55,7 @@ jobs:
     # tagged pushes (e.g. v0.1.1) publish the CI build as a GitHub release
     if: startsWith(github.ref, 'refs/tags/v')
     name: Release
-    needs: build
+    needs: package
     runs-on: ubuntu-latest
     permissions:
       contents: write
