@@ -1,9 +1,10 @@
 #include "SettingsContent.hpp"
 
-#include "../ui/MenuBackground.hpp"
-#include "../ui/SettingsOverlay.hpp"
-#include "../ui/SettingsRows.hpp"
-#include "../ui/Text.hpp"
+#include "../audio/MusicPlayer.hpp"
+#include "../ui/core/Text.hpp"
+#include "../ui/menu/MenuBackground.hpp"
+#include "../ui/overlays/SettingsOverlay.hpp"
+#include "../ui/overlays/SettingsRows.hpp"
 #include "Account.hpp"
 #include "GDOptions.hpp"
 
@@ -209,6 +210,18 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
     trianglesRow->setTooltip("Applies the next time the menu loads.");
     overlay->addRow(trianglesRow);
 
+    auto introRow = ToggleRow::create(
+        "Intro and outro", w, k,
+        [mod] { return mod->getSettingValue<bool>("intro"); },
+        [mod] {
+            bool v = !mod->getSettingValue<bool>("intro");
+            mod->setSettingValue<bool>("intro", v);
+            return v;
+        }
+    );
+    introRow->setTooltip("Animated intro when the game starts, and an outro when you quit.");
+    overlay->addRow(introRow);
+
     overlay->addSubsection("Music");
     auto musicRow = ToggleRow::create(
         "Play level songs in the menu", w, k,
@@ -221,6 +234,10 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
     );
     musicRow->setTooltip("Plays your downloaded levels' songs instead of the menu theme, with the level's thumbnail as the background. Applies the next time the menu loads.");
     overlay->addRow(musicRow);
+    auto unblockRow = ButtonRow::create("Unblock all songs", w, k, [] { MusicPlayer::get().unblockAll(); });
+    unblockRow->setTooltip("Songs you blocked in the music player (the ban button) can play again.");
+    unblockRow->setShownIf([] { return MusicPlayer::get().blockedCount() > 0; });
+    overlay->addRow(unblockRow);
 
     overlay->addSubsection("Mods");
     overlay->addRow(ButtonRow::create("All Lazer UI settings", w, k, [mod] { openSettingsPopup(mod); }));

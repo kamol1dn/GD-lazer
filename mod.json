@@ -7,6 +7,7 @@
 		"ios": "2.2081"
 	},
 	"id": "kamol1dn.lazer-ui",
+	"early-load": true,
 	"name": "Lazer UI",
 	"version": "v0.1.0",
 	"developer": "Kamol1dn",
@@ -95,6 +96,12 @@
 			"type": "bool",
 			"name": "Lazer profiles",
 			"description": "Show player profiles (yours and everyone else's) as a full osu!-style page instead of GD's popup.",
+			"default": true
+		},
+		"intro": {
+			"type": "bool",
+			"name": "Intro and outro",
+			"description": "Play an animated intro when the game starts (the first song fades in under it) and a short outro when you quit.",
 			"default": true
 		},
 		"music-player": {

@@ -14,7 +14,8 @@ namespace lazer {
 namespace {
     constexpr int CHANNEL = 0;                 // GD's background music channel
     constexpr unsigned RESTART_CUTOFF_MS = 5000; // MusicController.restart_cutoff_point
-    constexpr float END_GRACE_S = 1.f;         // ignore "not playing" right after starting a track
+    constexpr float END_GRACE_S = 1.f;
+    constexpr unsigned MIN_TRACK_MS = 30000;         // ignore "not playing" right after starting a track
 
     std::mt19937& rng() {
         static std::mt19937 r {std::random_device {}()};
@@ -45,6 +46,7 @@ MusicPlayer& MusicPlayer::get() {
 
 MusicPlayer::MusicPlayer() {
     m_shuffle = Mod::get()->getSavedValue<bool>("music-shuffle", false);
+    for (int id : Mod::get()->getSavedValue<std::vector<int>>("music-blocked", {})) m_blocked.insert(id);
     CCScheduler::get()->scheduleUpdateForTarget(this, 0, false);
 }
 
@@ -69,7 +71,7 @@ void MusicPlayer::rebuildPlaylist() {
             for (int id : ids) {
                 auto it = byId.find(id);
                 if (it == byId.end()) {
-                    if (!songs->isSongDownloaded(id)) continue;
+                    if (m_blocked.contains(id) || !songs->isSongDownloaded(id)) continue;
                     Track track {id, songs->pathForSong(id), fmt::format("Song {}", id), "", {}};
                     if (auto info = songs->getSongInfoObject(id)) {
                         if (!info->m_songName.empty()) track.title = info->m_songName;
@@ -117,8 +119,25 @@ bool MusicPlayer::startMenuMusic() {
     log::info("Menu music: {} downloaded level songs", m_tracks.size());
     if (m_tracks.empty()) return false;
 
+    // The intro starts it (see releaseIntro).
+    if (m_introHold) return true;
+
     bool resume = current() && current()->songID == previousSong;
     play(m_index, Direction::None, resume ? m_savedPosition : 0, 1.f);
+    return true;
+}
+
+bool MusicPlayer::releaseIntro() {
+    bool held = m_introHold;
+    m_introHold = false;
+    log::info("Intro starts the music (held: {})", held);
+    if (!enabled()) return false;
+    if (m_tracks.empty()) {
+        if (!held) return false;
+        rebuildPlaylist();
+        if (m_tracks.empty()) return false;
+    }
+    play(m_index, Direction::None, 0, 0.f);
     return true;
 }
 
@@ -129,6 +148,17 @@ void MusicPlayer::play(size_t index, Direction direction, unsigned startMs, floa
 
     log::info("Playing \"{}\" by {} ({} level(s), {})", track.title, track.artist, track.levels.size(), track.path);
     engine()->playMusic(track.path, false, fadeIn, CHANNEL);
+
+    // Levels can use library sound effects as their song: skip anything that
+    // short, it's not menu music.
+    unsigned length = engine()->getMusicLengthMS(CHANNEL);
+    if (length > 0 && length < MIN_TRACK_MS && m_tracks.size() > 1) {
+        log::info("Skipping \"{}\" ({} ms, too short)", track.title, length);
+        m_tracks.erase(m_tracks.begin() + index);
+        m_history.clear();
+        play(index % m_tracks.size(), direction, 0, fadeIn);
+        return;
+    }
     if (startMs > 0) engine()->setMusicTimeMS(startMs, true, CHANNEL);
 
     m_active = true;
@@ -185,6 +215,33 @@ void MusicPlayer::seek(float fraction) {
     unsigned ms = static_cast<unsigned>(std::clamp(fraction, 0.f, 1.f) * (len - 1));
     engine()->setMusicTimeMS(ms, true, CHANNEL);
     m_savedPosition = ms;
+}
+
+void MusicPlayer::blockCurrent() {
+    auto track = current();
+    if (!track) return;
+    log::info("Blocking \"{}\" ({})", track->title, track->songID);
+    m_blocked.insert(track->songID);
+    Mod::get()->setSavedValue("music-blocked", std::vector<int>(m_blocked.begin(), m_blocked.end()));
+
+    size_t index = m_index;
+    m_tracks.erase(m_tracks.begin() + index);
+    m_history.clear();
+    if (m_tracks.empty()) {
+        // Nothing of ours left: GD's own menu loop takes over.
+        m_active = false;
+        m_index = 0;
+        notify(Direction::None);
+        GameManager::get()->playMenuMusic();
+        return;
+    }
+    play(index % m_tracks.size(), Direction::Next);
+}
+
+void MusicPlayer::unblockAll() {
+    m_blocked.clear();
+    Mod::get()->setSavedValue("music-blocked", std::vector<int>());
+    // Picked up the next time the playlist is built (menu music restart).
 }
 
 void MusicPlayer::toggleShuffle() {

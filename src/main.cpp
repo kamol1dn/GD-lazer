@@ -2,23 +2,25 @@
 #include <Geode/modify/MenuLayer.hpp>
 
 #include "audio/MusicPlayer.hpp"
+#include "integrations/LevelThumbnails.hpp"
+#include "integrations/ModIntegrations.hpp"
 #include "settings/Account.hpp"
 #include "settings/SettingsContent.hpp"
-#include "ui/AccountPanel.hpp"
-#include "ui/AchievementsOverlay.hpp"
-#include "ui/ButtonSystem.hpp"
-#include "ui/LevelThumbnails.hpp"
-#include "ui/MenuBackground.hpp"
-#include "ui/ModIntegrations.hpp"
-#include "ui/NowPlayingOverlay.hpp"
-#include "ui/RewardsOverlay.hpp"
-#include "ui/SettingsOverlay.hpp"
-#include "ui/SideFlashes.hpp"
-#include "ui/SongTicker.hpp"
-#include "ui/StatsOverlay.hpp"
-#include "ui/Text.hpp"
-#include "ui/Toolbar.hpp"
+#include "ui/core/Text.hpp"
+#include "ui/menu/AccountPanel.hpp"
+#include "ui/menu/ButtonSystem.hpp"
+#include "ui/menu/MenuBackground.hpp"
+#include "ui/menu/NowPlayingOverlay.hpp"
+#include "ui/menu/SideFlashes.hpp"
+#include "ui/menu/SongTicker.hpp"
+#include "ui/menu/Toolbar.hpp"
+#include "ui/overlays/AchievementsOverlay.hpp"
+#include "ui/overlays/RewardsOverlay.hpp"
+#include "ui/overlays/SettingsOverlay.hpp"
+#include "ui/overlays/StatsOverlay.hpp"
+#include "ui/startup/IntroSequence.hpp"
 
+#include <Geode/fmod/fmod.hpp>
 #include <unordered_map>
 
 using namespace geode::prelude;
@@ -28,6 +30,51 @@ namespace icon = lazer::icon;
 namespace {
     // Set when a button leaves the menu, so coming back re-opens the button bar like osu!.
     bool g_returnToTopLevel = false;
+    // The intro plays once, on the first menu after the game starts.
+    bool g_introPlayed = false;
+    // GD's "quit game?" popup, so its "yes" can play the outro first.
+    FLAlertLayer* g_quitAlert = nullptr;
+    bool g_exiting = false;
+
+    constexpr float OUTRO_MS = 1200;
+
+    // The outro (osu!'s IntroScreen.OnResuming without the voice): the music
+    // fades out while the screen goes to black, then `done` quits.
+    class Outro : public CCLayerColor {
+    public:
+        static Outro* create(std::function<void()> done) {
+            auto ret = new Outro();
+            ret->m_done = std::move(done);
+            ret->initWithColor({0, 0, 0, 0});
+            ret->autorelease();
+            ret->setTouchEnabled(true);
+            ret->scheduleUpdate();
+            return ret;
+        }
+
+        void registerWithTouchDispatcher() override {
+            CCDirector::get()->getTouchDispatcher()->addTargetedDelegate(this, -600, true);
+        }
+        bool ccTouchBegan(CCTouch*, CCEvent*) override { return true; }
+
+        void update(float dt) override {
+            m_ms += dt * 1000.f;
+            float t = std::min(1.f, m_ms / OUTRO_MS);
+            this->setOpacity(static_cast<GLubyte>(lazer::ease(lazer::Easing::InSine, t) * 255));
+            if (auto channel = FMODAudioEngine::get()->getActiveMusicChannel(0)) {
+                channel->setVolume(1.f - static_cast<float>(lazer::ease(lazer::Easing::Out, t)));
+            }
+            if (t >= 1.f && m_done) {
+                auto done = std::move(m_done);
+                m_done = nullptr;
+                done();
+            }
+        }
+
+    private:
+        std::function<void()> m_done;
+        float m_ms = 0;
+    };
 
     // Vanilla menus whose buttons move into the toolbar. Mods often add buttons here too.
     constexpr std::array TOOLBAR_SOURCE_MENUS {
@@ -81,8 +128,13 @@ class $modify(LazerMenuLayer, MenuLayer) {
     };
 
     bool init() {
-        if (!MenuLayer::init()) return false;
         auto mod = Mod::get();
+        bool intro = !g_introPlayed && mod->getSettingValue<bool>("enabled") && mod->getSettingValue<bool>("intro");
+        g_introPlayed = true;
+        // GD starts the menu music during init: hold the first song for the intro.
+        if (intro) lazer::MusicPlayer::get().holdForIntro();
+
+        if (!MenuLayer::init()) return false;
         if (!mod->getSettingValue<bool>("enabled")) return true;
 
         for (auto id : HIDDEN_NODES) {
@@ -149,7 +201,50 @@ class $modify(LazerMenuLayer, MenuLayer) {
             g_returnToTopLevel = false;
             buttons->resumeTopLevel();
         }
+
+        if (intro) {
+            auto sequence = lazer::IntroSequence::create(buttons->logoRadius(), [this] {
+                // The ticker ran behind the intro: show it again now it can be seen.
+                auto& player = lazer::MusicPlayer::get();
+                if (m_fields->ticker && player.isActive()) m_fields->ticker->show(player.current());
+            });
+            sequence->setID("intro"_spr);
+            this->addChild(sequence, 1000);
+        }
         return true;
+    }
+
+    void onQuit(CCObject* sender) {
+        MenuLayer::onQuit(sender);
+        // Remember GD's quit popup (the newest alert in the scene).
+        g_quitAlert = nullptr;
+        if (auto scene = CCDirector::get()->getRunningScene()) {
+            for (auto child : CCArrayExt<CCNode*>(scene->getChildren())) {
+                if (auto alert = typeinfo_cast<FLAlertLayer*>(child)) g_quitAlert = alert;
+            }
+        }
+    }
+
+    void FLAlert_Clicked(FLAlertLayer* layer, bool btn2) {
+        auto mod = Mod::get();
+        bool outro = btn2 && layer && layer == g_quitAlert && !g_exiting
+            && mod->getSettingValue<bool>("enabled") && mod->getSettingValue<bool>("intro");
+        g_quitAlert = nullptr;
+        if (!outro) return MenuLayer::FLAlert_Clicked(layer, btn2);
+
+        g_exiting = true;
+        auto& f = m_fields;
+        this->closeOverlaysExcept(nullptr);
+        if (f->nowPlaying) f->nowPlaying->close();
+        if (f->account) f->account->close();
+        if (f->ticker) f->ticker->hide();
+        if (f->buttons) f->buttons->playExit(OUTRO_MS);
+
+        Ref<FLAlertLayer> alert = layer;
+        Ref<MenuLayer> self = this;
+        this->addChild(Outro::create([self, alert] {
+            self->MenuLayer::FLAlert_Clicked(alert, true);
+        }), 1000);
     }
 
     void setupBackground() {
@@ -342,6 +437,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
     }
 
     void keyBackClicked() {
+        if (g_exiting) return;
         // Escape closes overlays, then collapses the button bar (like osu!), then GD's quit prompt.
         if (m_fields->nowPlaying && m_fields->nowPlaying->back()) return;
         if (m_fields->account && m_fields->account->back()) return;

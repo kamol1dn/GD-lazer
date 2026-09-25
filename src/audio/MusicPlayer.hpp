@@ -3,6 +3,7 @@
 #include <Geode/cocos/include/cocos2d.h>
 #include <functional>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace lazer {
@@ -45,6 +46,13 @@ public:
     // returns true, or returns false to let GD play its own loop.
     bool startMenuMusic();
 
+    // Game start: hold the first song back until the intro starts it (osu!'s
+    // IntroScreen.StartTrack), so it fades in under the animation.
+    void holdForIntro() { m_introHold = true; }
+    // Starts the current song from the top. Returns false if there is no song
+    // of ours to play (GD's own menu loop is on the channel then).
+    bool releaseIntro();
+
     Track const* current() const;
     bool hasTracks() const { return !m_tracks.empty(); }
     // Our track is on the music channel (it may be paused).
@@ -59,6 +67,11 @@ public:
 
     bool shuffle() const { return m_shuffle; }
     void toggleShuffle();
+
+    // Never play the current song again (saved), and skip to the next one.
+    void blockCurrent();
+    size_t blockedCount() const { return m_blocked.size(); }
+    void unblockAll();
 
     unsigned positionMs() const;
     unsigned lengthMs() const;
@@ -80,6 +93,8 @@ private:
     bool m_active = false;
     bool m_paused = false;
     bool m_shuffle = false;
+    bool m_introHold = false;
+    std::unordered_set<int> m_blocked; // song IDs, saved as "music-blocked"
     unsigned m_savedPosition = 0; // where to resume after a level took over the channel
     float m_sinceStart = 0;
     std::vector<size_t> m_history; // for "previous" in shuffle mode

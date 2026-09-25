@@ -16,7 +16,7 @@ for name, cp in icons:
     esc = ''.join(BS + 'x%02X' % b for b in chr(cp).encode('utf-8'))
     lines.append(f'    constexpr auto {name} = "{esc}";'.ljust(52) + f'// {cp:04x}')
 block = 'namespace icon {\n' + '\n'.join(lines) + '\n}'
-p = 'src/ui/Text.hpp'
+p = 'src/ui/core/Text.hpp'
 s = open(p, encoding='utf-8').read()
 s = re.sub(r'namespace icon \{.*?\n\}', lambda m: block, s, flags=re.S)
 s = s.replace('// Font Awesome Free glyphs baked into the icon font (codepoints listed in mod.json).',
