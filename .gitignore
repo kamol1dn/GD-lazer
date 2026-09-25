@@ -6,3 +6,6 @@ out/
 *.geode
 # osu!/osu-framework clones, reference only
 ref/
+
+# Local working notes, not published
+docs/HANDOFF.md
