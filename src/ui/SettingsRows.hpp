@@ -115,6 +115,9 @@ public:
     void onClick(cocos2d::CCPoint local) override;
     void update(float dt) override;
 
+    void setColor(cocos2d::ccColor4B color) { m_color = color; }
+    void setEnabled(bool enabled) { m_enabled = enabled; }
+
     // Public so the shared create() helper can call it.
     bool init(std::string const& label, float width, float k, std::function<void()> action, bool dangerous);
 
@@ -122,6 +125,7 @@ protected:
     std::function<void()> m_action;
     RoundedBox* m_bg = nullptr;
     cocos2d::ccColor4B m_color {};
+    bool m_enabled = true;
     Tweened<float> m_hover {0.f};
     Tweened<float> m_flash {0.f};
 };

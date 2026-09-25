@@ -18,6 +18,7 @@ enum class Easing {
     OutElasticHalf,
     In,
     InSine,
+    OutSine,
     InOutSine,
     InQuint,
     InOutQuint,
@@ -53,6 +54,7 @@ inline double ease(Easing e, double t) {
                 - ELASTIC_OFFSET_HALF * t;
         case Easing::In: return t * t;
         case Easing::InSine: return 1 - std::cos(t * PI * .5);
+        case Easing::OutSine: return std::sin(t * PI * .5);
         case Easing::InOutSine: return .5 - .5 * std::cos(PI * t);
         case Easing::InQuint: return t * t * t * t * t;
         case Easing::InOutQuint:

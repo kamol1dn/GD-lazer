@@ -4,6 +4,7 @@
 #include "settings/SettingsContent.hpp"
 #include "ui/ButtonSystem.hpp"
 #include "ui/MenuBackground.hpp"
+#include "ui/RewardsOverlay.hpp"
 #include "ui/SettingsOverlay.hpp"
 #include "ui/Text.hpp"
 #include "ui/Toolbar.hpp"
@@ -58,6 +59,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
         lazer::Toolbar* toolbar = nullptr;
         lazer::MenuBackground* background = nullptr;
         lazer::SettingsOverlay* settings = nullptr;
+        lazer::RewardsOverlay* rewards = nullptr;
     };
 
     bool init() {
@@ -165,7 +167,10 @@ class $modify(LazerMenuLayer, MenuLayer) {
                 }
 
                 Ref<CCMenuItem> target = item;
-                toolbar->addRight({iconNode, tooltip, [target] { target->activate(); }});
+                std::function<void()> action = [target] { target->activate(); };
+                // Daily chests get our own overlay instead of GD's popup.
+                if (id == "daily-chest-button") action = [this] { this->toggleRewards(); };
+                toolbar->addRight({iconNode, tooltip, action});
             }
             menu->setVisible(false);
         }
@@ -195,13 +200,33 @@ class $modify(LazerMenuLayer, MenuLayer) {
             lazer::buildSettings(settings, this, m_fields->background);
             this->addChild(settings, 15);
         }
-        if (settings->isOpen()) settings->close();
-        else settings->open();
+        if (settings->isOpen()) {
+            settings->close();
+        } else {
+            if (m_fields->rewards) m_fields->rewards->close();
+            settings->open();
+        }
+    }
+
+    void toggleRewards() {
+        auto& rewards = m_fields->rewards;
+        if (!rewards) {
+            rewards = lazer::RewardsOverlay::create(m_fields->toolbar ? m_fields->toolbar->height() : 0);
+            rewards->setID("rewards"_spr);
+            this->addChild(rewards, 16);
+        }
+        if (rewards->isOpen()) {
+            rewards->close();
+        } else {
+            if (m_fields->settings) m_fields->settings->close();
+            rewards->open();
+        }
     }
 
     void keyBackClicked() {
         // Escape closes overlays, then collapses the button bar (like osu!), then GD's quit prompt.
         if (m_fields->settings && m_fields->settings->back()) return;
+        if (m_fields->rewards && m_fields->rewards->back()) return;
         if (m_fields->buttons && m_fields->buttons->back()) return;
         MenuLayer::keyBackClicked();
     }

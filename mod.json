@@ -43,6 +43,12 @@
 			"description": "Replace the main menu with the Lazer-style menu. Takes effect next time the menu loads.",
 			"default": true
 		},
+		"restyle-popups": {
+			"type": "bool",
+			"name": "Restyle popups",
+			"description": "Give GD's popups (rewards, confirmations, info boxes...) the dark osu!-style look. Other mods' popups are left alone.",
+			"default": true
+		},
 		"background-dim": {
 			"type": "int",
 			"name": "Background dim",

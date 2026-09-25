@@ -266,6 +266,7 @@ void ButtonRow::setHovered(bool hovered) {
 }
 
 void ButtonRow::onClick(CCPoint) {
+    if (!m_enabled) return;
     m_flash.set(1.f);
     m_flash.to(0.f, 400, Easing::OutQuint);
     if (m_action) m_action();
@@ -275,7 +276,8 @@ void ButtonRow::update(float dt) {
     m_hover.update(dt);
     m_flash.update(dt);
     float t = std::clamp(m_hover.get() * 0.15f + m_flash.get() * 0.4f, 0.f, 1.f);
-    m_bg->setFillColor(theme::lerp(m_color, {255, 255, 255, 255}, t));
+    auto base = m_enabled ? m_color : theme::lerp(m_color, {40, 40, 40, 255}, 0.7f);
+    m_bg->setFillColor(theme::lerp(base, {255, 255, 255, 255}, m_enabled ? t : 0.f));
 }
 
 } // namespace lazer

@@ -11,7 +11,8 @@ namespace lazer {
 namespace {
     // osu-framework ScrollContainer decays the remaining distance by ~1% per ms.
     constexpr double DECAY_PER_MS = 0.989;
-    constexpr float WHEEL_STEP = 36.f; // GD units per wheel notch (about three rows)
+    constexpr float WHEEL_STEP = 40.f;       // GD units per wheel notch (about three rows)
+    constexpr float UNITS_PER_NOTCH = 12.f;  // GD reports ~12 per physical notch
 }
 
 ScrollArea* ScrollArea::create(CCSize size) {
@@ -69,8 +70,10 @@ void ScrollArea::scrollWheel(float y, float) {
     for (auto n = this->getParent(); n; n = n->getParent()) {
         if (!n->isVisible()) return;
     }
-    // GD reports roughly one unit per notch; positive = scroll down.
-    m_target = std::clamp(m_target + y * WHEEL_STEP, 0.f, maxScroll());
+    // Positive = scroll down. Cap each event at a few notches so a fast flick
+    // (or a free-spinning wheel) can't fling the list to the end.
+    float notches = std::clamp(y / UNITS_PER_NOTCH, -3.f, 3.f);
+    m_target = std::clamp(m_target + notches * WHEEL_STEP, 0.f, maxScroll());
 }
 
 void ScrollArea::beginDrag() {
