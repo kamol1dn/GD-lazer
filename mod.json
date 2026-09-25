@@ -1,0 +1,72 @@
+{
+	"geode": "5.10.1",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081",
+		"ios": "2.2081"
+	},
+	"id": "kamol1dn.lazer-ui",
+	"name": "Lazer UI",
+	"version": "v0.1.0",
+	"developer": "Kamol1dn",
+	"description": "A smooth, music-reactive menu overhaul inspired by osu!lazer.",
+	"resources": {
+		"fonts": {
+			"outfit-regular": {
+				"path": "resources/fonts/Outfit-Regular.ttf",
+				"size": 96
+			},
+			"outfit-semibold": {
+				"path": "resources/fonts/Outfit-SemiBold.ttf",
+				"size": 96
+			},
+			"outfit-bold": {
+				"path": "resources/fonts/Outfit-Bold.ttf",
+				"size": 160
+			},
+			"icons": {
+				"path": "resources/fonts/fa-solid-900.ttf",
+				"size": 96,
+				"charset": "61441,61445,61447,61459,61461,61515,61527,61547,61568,61585,61612,61683,61723,61742,62212,62803"
+			}
+		},
+		"files": [
+			"resources/fonts/OFL.txt",
+			"resources/fonts/FontAwesome-LICENSE.txt"
+		]
+	},
+	"settings": {
+		"enabled": {
+			"type": "bool",
+			"name": "Enable Lazer menu",
+			"description": "Replace the main menu with the Lazer-style menu. Takes effect next time the menu loads.",
+			"default": true
+		},
+		"background-dim": {
+			"type": "int",
+			"name": "Background dim",
+			"description": "How much to darken the menu background, in percent.",
+			"default": 45,
+			"min": 0,
+			"max": 100,
+			"control": {
+				"slider": true,
+				"arrows": false,
+				"input": true
+			}
+		},
+		"background-blur": {
+			"type": "bool",
+			"name": "Blur background",
+			"description": "Blur the menu background, like osu!.",
+			"default": true
+		},
+		"background-triangles": {
+			"type": "bool",
+			"name": "Background triangles",
+			"description": "Show slowly drifting triangles over the background.",
+			"default": true
+		}
+	}
+}

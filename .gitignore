@@ -1,0 +1,8 @@
+build/
+build-*/
+.cache/
+.vs/
+out/
+*.geode
+# osu!/osu-framework clones, reference only
+ref/
