@@ -135,12 +135,15 @@ bool ToolbarButton::containsWorldPoint(CCPoint p) {
     return local.x >= 0 && local.y >= 0 && local.x <= size.width && local.y <= size.height;
 }
 
-void ToolbarButton::update(float dt) {
-    // Only interactive while actually on screen.
+// Only interactive while actually on screen.
+bool ToolbarButton::interactive() {
     bool visible = m_enabled;
     for (CCNode* n = this; n && visible; n = n->getParent()) visible = n->isVisible();
+    return visible;
+}
 
-    bool hovered = visible && containsWorldPoint(geode::cocos::getMousePos());
+void ToolbarButton::update(float dt) {
+    bool hovered = interactive() && containsWorldPoint(geode::cocos::getMousePos());
     if (hovered != m_hovered) {
         m_hovered = hovered;
         if (hovered) sfx::hover(sfx::sound::DEFAULT_HOVER);
@@ -162,7 +165,8 @@ void ToolbarButton::update(float dt) {
 }
 
 bool ToolbarButton::ccTouchBegan(CCTouch* touch, CCEvent*) {
-    if (!m_hovered || !containsWorldPoint(touch->getLocation())) return false;
+    // Not m_hovered: touchscreens have no hover.
+    if (!interactive() || !containsWorldPoint(touch->getLocation())) return false;
     m_pressed = true;
     return true;
 }

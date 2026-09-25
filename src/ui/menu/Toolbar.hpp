@@ -29,6 +29,7 @@ public:
 protected:
     bool init(cocos2d::CCNode* icon, std::string const& tooltip, float height, std::function<void()> action);
     bool containsWorldPoint(cocos2d::CCPoint p);
+    bool interactive();
 
     std::function<void()> m_action;
     RoundedBox* m_hoverBg = nullptr;
