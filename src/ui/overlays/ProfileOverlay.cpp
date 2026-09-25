@@ -35,10 +35,19 @@ class $modify(LazerProfilePage, ProfilePage) {
         ProfilePage::registerWithTouchDispatcher();
     }
 
+#ifdef GEODE_IS_ANDROID
+    // Android's keyBackClicked is just onClose(nullptr): too small to hook (the
+    // hook's patch spills into the next function), so guard onClose instead.
+    void onClose(CCObject* sender) {
+        if (hidden()) return;
+        ProfilePage::onClose(sender);
+    }
+#else
     void keyBackClicked() {
         if (hidden()) return;
         ProfilePage::keyBackClicked();
     }
+#endif
 
     void loadCommentsFinished(CCArray* comments, char const* key) {
         ProfilePage::loadCommentsFinished(comments, key);

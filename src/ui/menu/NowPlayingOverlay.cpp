@@ -57,7 +57,7 @@ bool NowPlayingOverlay::init(float toolbarHeight) {
     if (!CCNode::init()) return false;
     auto win = CCDirector::sharedDirector()->getWinSize();
     this->setContentSize(win);
-    m_k = win.height / 768.f;
+    m_k = unitScale();
     m_toolbarHeight = toolbarHeight;
     float k = m_k;
     float w = PLAYER_WIDTH * k, h = PLAYER_HEIGHT * k;

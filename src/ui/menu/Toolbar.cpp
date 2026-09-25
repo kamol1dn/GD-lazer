@@ -2,6 +2,7 @@
 
 #include "../../audio/Sfx.hpp"
 #include "../core/Text.hpp"
+#include "../core/Theme.hpp"
 
 #include <Geode/Geode.hpp>
 #include <chrono>
@@ -13,7 +14,6 @@ namespace lazer {
 
 namespace {
     // Toolbar.cs / ToolbarButton.cs, in osu!'s 768px-tall units.
-    constexpr float OSU_HEIGHT = 768.f;
     constexpr float TOOLBAR_HEIGHT = 40.f;
     constexpr float TRANSITION = 500.f;
     constexpr ccColor4B BG {26, 26, 26, 255};          // OsuColour.Gray(0.1f)
@@ -192,7 +192,7 @@ Toolbar* Toolbar::create() {
 bool Toolbar::init() {
     if (!CCNode::init()) return false;
     auto win = CCDirector::sharedDirector()->getWinSize();
-    m_height = TOOLBAR_HEIGHT * win.height / OSU_HEIGHT;
+    m_height = TOOLBAR_HEIGHT * unitScale();
     this->setContentSize({win.width, m_height});
 
     m_content = CCNode::create();

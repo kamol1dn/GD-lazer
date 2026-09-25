@@ -2,6 +2,7 @@
 
 #include "../../audio/Sfx.hpp"
 #include "../core/Text.hpp"
+#include "../core/Theme.hpp"
 
 #include <Geode/Geode.hpp>
 
@@ -30,7 +31,7 @@ bool WaveOverlay::init(float topInset, theme::Scheme scheme, char const* icon,
                        std::string const& title, std::string const& description, float headerHeight) {
     if (!CCNode::init()) return false;
     auto win = CCDirector::sharedDirector()->getWinSize();
-    m_k = win.height / 768.f;
+    m_k = unitScale();
     m_scheme = scheme;
     m_topInset = topInset;
     m_height = win.height - topInset;

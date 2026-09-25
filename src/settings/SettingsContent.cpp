@@ -181,6 +181,16 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
 
     // --- Lazer UI + Geode ---
     overlay->beginSection("Lazer UI", icon::STAR);
+    overlay->addSubsection("Layout");
+    // Slider 0..1 covers 50%..200%, in steps of 5%.
+    auto scaleRow = SliderRow::create(
+        "UI scale", w, k,
+        [mod] { return (mod->getSettingValue<int64_t>("ui-scale") - 50) / 150.f; },
+        [mod](float v) { mod->setSettingValue<int64_t>("ui-scale", 50 + int64_t(std::round(v * 30)) * 5); },
+        [](float v) { return fmt::format("{}%", 50 + int(std::round(v * 30)) * 5); }
+    );
+    scaleRow->setTooltip("Size of the menus. Takes effect next time the menu loads.");
+    overlay->addRow(scaleRow);
     overlay->addSubsection("Background");
     auto dimRow = SliderRow::create(
         "Background dim", w, k,

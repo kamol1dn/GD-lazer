@@ -64,7 +64,7 @@ bool SettingsOverlay::init(float topInset) {
     auto win = CCDirector::sharedDirector()->getWinSize();
     this->setContentSize(win);
 
-    m_k = win.height / 768.f;
+    m_k = unitScale();
     m_topInset = topInset;
     m_sidebarWidth = SIDEBAR_WIDTH * m_k;
     m_sidebarExpandedWidth = SIDEBAR_EXPANDED_WIDTH * m_k;

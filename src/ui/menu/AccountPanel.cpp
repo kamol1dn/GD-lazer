@@ -53,7 +53,7 @@ bool AccountPanel::init(float toolbarHeight, Actions actions) {
     if (!CCNode::init()) return false;
     auto win = CCDirector::sharedDirector()->getWinSize();
     this->setContentSize(win);
-    m_k = win.height / 768.f;
+    m_k = unitScale();
     m_toolbarHeight = toolbarHeight;
     m_actions = std::move(actions);
 

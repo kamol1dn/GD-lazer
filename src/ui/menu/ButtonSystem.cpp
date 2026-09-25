@@ -1,6 +1,7 @@
 #include "ButtonSystem.hpp"
 
 #include "../core/Text.hpp"
+#include "../core/Theme.hpp"
 
 #include <Geode/loader/Log.hpp>
 
@@ -9,8 +10,7 @@ using namespace cocos2d;
 namespace lazer {
 
 namespace {
-    // osu! lays the menu out for a 768px-tall screen.
-    constexpr float OSU_HEIGHT = 768.f;
+    // osu! pixels (see unitScale).
     constexpr float BUTTON_WIDTH = 140.f;
     constexpr float BUTTON_AREA_HEIGHT = 100.f;
     constexpr float WEDGE_WIDTH = 20.f;
@@ -40,7 +40,7 @@ bool ButtonSystem::init(std::vector<ButtonDef> buttons) {
     this->setContentSize(win);
     m_center = win / 2;
 
-    float k = win.height / OSU_HEIGHT;
+    float k = unitScale();
     m_buttonWidth = BUTTON_WIDTH * k;
     m_barHeight = BUTTON_AREA_HEIGHT * k;
     m_wedge = WEDGE_WIDTH * k;

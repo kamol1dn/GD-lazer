@@ -158,7 +158,7 @@ SongSelect* SongSelect::create() {
 bool SongSelect::init() {
     if (!CCLayer::init()) return false;
     m_win = CCDirector::get()->getWinSize();
-    m_k = m_win.height / 768.f;
+    m_k = unitScale();
     float k = m_k;
     this->setID("song-select"_spr);
 
@@ -964,6 +964,9 @@ class $modify(SongSelectLevelPage, LevelInfoLayer) {
         LevelInfoLayer::onBack(sender);
     }
 
+#ifndef GEODE_IS_ANDROID
+    // On Android, keyBackClicked is just onBack(nullptr), which is hooked above;
+    // hooking a function that small spills the patch into the next one.
     void keyBackClicked() {
         if (lazer::SongSelect::returnsHere() && Mod::get()->getSettingValue<bool>("enabled")) {
             this->onBack(nullptr);
@@ -971,4 +974,5 @@ class $modify(SongSelectLevelPage, LevelInfoLayer) {
         }
         LevelInfoLayer::keyBackClicked();
     }
+#endif
 };

@@ -9,6 +9,7 @@
 #include "settings/Account.hpp"
 #include "settings/SettingsContent.hpp"
 #include "ui/core/Text.hpp"
+#include "ui/core/Theme.hpp"
 #include "ui/menu/AccountPanel.hpp"
 #include "ui/menu/ButtonSystem.hpp"
 #include "ui/menu/MenuBackground.hpp"
@@ -248,7 +249,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
             {"create", icon::PEN, {238, 170, 0}, open(State::Create), false, lazer::sfx::sound::MENU_PLAY_SELECT},
             {"browse", icon::COMPASS, {165, 204, 0}, open(State::Browse), false},
             {"icons", icon::SHIRT, {0, 160, 200}, leave(State::TopLevel, [this] { this->onGarage(nullptr); })},
-            {"exit", icon::CIRCLE_XMARK, {238, 51, 153}, [this] { this->onQuit(nullptr); }, false},
+            {"exit", icon::CIRCLE_XMARK, {238, 51, 153}, [this] { this->onQuit(this); }, false},
 
             // play: everything you can play right away
             // Song select: RobTop's levels and your saved ones in one list.
@@ -300,7 +301,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
 
         // Song ticker at the top right, under the toolbar.
         auto win = CCDirector::sharedDirector()->getWinSize();
-        float k = win.height / 768.f;
+        float k = lazer::unitScale();
         auto ticker = lazer::SongTicker::create(k);
         ticker->setPosition({win.width - 15 * k, win.height - toolbar->height() - 5 * k});
         this->addChild(ticker, 12);
@@ -334,6 +335,10 @@ class $modify(LazerMenuLayer, MenuLayer) {
     }
 
     void onQuit(CCObject* sender) {
+#ifdef GEODE_IS_ANDROID
+        // The back button: see keyBackClicked below.
+        if (!sender && this->lazerBack()) return;
+#endif
         MenuLayer::onQuit(sender);
         // Remember GD's quit popup (the newest alert in the scene).
         g_quitAlert = nullptr;
@@ -570,16 +575,26 @@ class $modify(LazerMenuLayer, MenuLayer) {
         if (nowPlaying->isOpen() && m_fields->ticker) m_fields->ticker->hide();
     }
 
+    // Escape closes overlays, then collapses the button bar (like osu!), then GD's quit prompt.
+    // Returns whether it handled the key.
+    bool lazerBack() {
+        if (g_exiting) return true;
+        if (m_fields->nowPlaying && m_fields->nowPlaying->back()) return true;
+        if (m_fields->account && m_fields->account->back()) return true;
+        if (m_fields->settings && m_fields->settings->back()) return true;
+        if (m_fields->rewards && m_fields->rewards->back()) return true;
+        if (m_fields->achievements && m_fields->achievements->back()) return true;
+        if (m_fields->stats && m_fields->stats->back()) return true;
+        if (m_fields->buttons && m_fields->buttons->back()) return true;
+        return false;
+    }
+
+#ifndef GEODE_IS_ANDROID
+    // On Android, keyBackClicked is just onQuit(nullptr): too small to hook (the
+    // hook's patch spills into the next function), so onQuit handles it there.
     void keyBackClicked() {
-        if (g_exiting) return;
-        // Escape closes overlays, then collapses the button bar (like osu!), then GD's quit prompt.
-        if (m_fields->nowPlaying && m_fields->nowPlaying->back()) return;
-        if (m_fields->account && m_fields->account->back()) return;
-        if (m_fields->settings && m_fields->settings->back()) return;
-        if (m_fields->rewards && m_fields->rewards->back()) return;
-        if (m_fields->achievements && m_fields->achievements->back()) return;
-        if (m_fields->stats && m_fields->stats->back()) return;
-        if (m_fields->buttons && m_fields->buttons->back()) return;
+        if (this->lazerBack()) return;
         MenuLayer::keyBackClicked();
     }
+#endif
 };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Geode/cocos/include/cocos2d.h>
+#include <Geode/loader/Mod.hpp>
 #include <algorithm>
 
 namespace lazer {
@@ -56,6 +57,16 @@ namespace theme {
         auto mix = [t](GLubyte x, GLubyte y) { return static_cast<GLubyte>(x + (y - x) * t); };
         return {mix(a.r, b.r), mix(a.g, b.g), mix(a.b, b.b), mix(a.a, b.a)};
     }
+}
+
+// GD units per osu! pixel. osu! lays its UI out for a 768px-tall screen; the
+// "ui-scale" setting enlarges that (phones are physically small), capped so the
+// layout never gets narrower than osu!'s 4:3 minimum of 1024 pixels.
+inline float unitScale() {
+    auto win = cocos2d::CCDirector::sharedDirector()->getWinSize();
+    float user = geode::Mod::get()->getSettingValue<int64_t>("ui-scale") / 100.f;
+    float widest = win.width / win.height * 768.f / 1024.f;
+    return win.height / 768.f * std::clamp(user, 0.5f, std::max(1.f, widest));
 }
 
 // Set while a full overlay (settings, etc.) is open, so the menu underneath
