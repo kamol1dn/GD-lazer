@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.0
+
+- Android support (arm64 and armv7); releases ship one .geode for Windows and Android
+- UI scale setting (Lazer UI > Layout), 150% by default on Android where screens are small
+- Fixed a crash when pressing back on Android
+- Toolbar buttons work on touchscreens
+- Popups from other mods keep their own design on Android too
+
 ## v0.1.0
 
 First alpha release, for testing. Expect crashes.
