@@ -1,5 +1,7 @@
 #include "ButtonSystem.hpp"
 
+#include "../core/Text.hpp"
+
 using namespace cocos2d;
 
 namespace lazer {
@@ -16,11 +18,12 @@ namespace {
     constexpr float LOGO_FACADE_SCALE = 0.74f;
 
     constexpr ccColor4B BAR_COLOR {50, 50, 50, 255}; // OsuColour.Gray(50)
+    constexpr ccColor3B BACK_COLOR {51, 58, 94};
 }
 
-ButtonSystem* ButtonSystem::create(std::vector<ButtonDef> left, std::vector<ButtonDef> right) {
+ButtonSystem* ButtonSystem::create(std::vector<ButtonDef> buttons) {
     auto ret = new ButtonSystem();
-    if (ret->init(std::move(left), std::move(right))) {
+    if (ret->init(std::move(buttons))) {
         ret->autorelease();
         return ret;
     }
@@ -28,7 +31,7 @@ ButtonSystem* ButtonSystem::create(std::vector<ButtonDef> left, std::vector<Butt
     return nullptr;
 }
 
-bool ButtonSystem::init(std::vector<ButtonDef> left, std::vector<ButtonDef> right) {
+bool ButtonSystem::init(std::vector<ButtonDef> buttons) {
     if (!CCNode::init()) return false;
 
     auto win = CCDirector::sharedDirector()->getWinSize();
@@ -52,8 +55,19 @@ bool ButtonSystem::init(std::vector<ButtonDef> left, std::vector<ButtonDef> righ
     m_bar = RoundedBox::create({win.width, m_barHeight}, 0, BAR_COLOR);
     m_barHolder->addChild(m_bar);
 
-    for (auto const& def : left) m_left.push_back(makeButton(def));
-    for (auto const& def : right) m_right.push_back(makeButton(def));
+    // "back", nearest the logo on the left, in every submenu.
+    ButtonDef back {"back", icon::CIRCLE_CHEVRON_LEFT, BACK_COLOR, [this] { this->setState(State::TopLevel); }, false};
+    m_left.push_back({makeButton(back), State::Play, State::Browse});
+
+    // osu! flows the submenus' buttons before the top level's, so the top
+    // level explodes outwards while a submenu unfolds from the logo.
+    for (auto state : {State::Play, State::Create, State::Browse, State::TopLevel}) {
+        for (auto const& def : buttons) {
+            if (def.visibleIn != state) continue;
+            auto& side = def.left ? m_left : m_right;
+            side.push_back({makeButton(def), state, state});
+        }
+    }
 
     m_logo = LazerLogo::create(m_logoRadius);
     m_logo->setCallback([this] { this->onLogoClicked(); });
@@ -72,7 +86,19 @@ MenuButton* ButtonSystem::makeButton(ButtonDef const& def) {
         def.label, def.icon, def.color,
         {m_buttonWidth, m_barHeight, m_wedge},
         [this, action, leaves] {
-            if (leaves) this->setState(State::EnteringMode);
+            if (leaves) {
+                State from = m_state;
+                this->setState(State::EnteringMode);
+                // GD sometimes stays put (a locked mode shows a popup instead):
+                // if we're still the running scene a moment later, unfold again.
+                schedule(900, [this, from] {
+                    if (m_state != State::EnteringMode) return;
+                    auto director = cocos2d::CCDirector::sharedDirector();
+                    CCNode* scene = this;
+                    while (scene->getParent()) scene = scene->getParent();
+                    if (director->getRunningScene() == scene && !director->getNextScene()) this->resume(from);
+                });
+            }
             if (action) action();
         }
     );
@@ -84,17 +110,18 @@ MenuButton* ButtonSystem::makeButton(ButtonDef const& def) {
 
 void ButtonSystem::onLogoClicked() {
     if (m_exiting) return;
-    switch (m_state) {
-        case State::Initial:
-            sfx::play(sfx::sound::LOGO_SELECT);
-            setState(State::TopLevel);
-            break;
-        case State::TopLevel:
-            // Clicking the logo at top level presses the first button (Play), like osu!.
-            if (!m_right.empty()) m_right.front()->trigger();
-            break;
-        case State::EnteringMode:
-            break;
+    if (m_state == State::Initial) {
+        sfx::play(sfx::sound::LOGO_SELECT);
+        setState(State::TopLevel);
+        return;
+    }
+    // Otherwise the logo presses the first button of the current menu (Play, Solo...), like osu!.
+    if (!isMenu(m_state)) return;
+    for (auto& e : m_right) {
+        if (e.min == m_state) {
+            e.button->trigger();
+            return;
+        }
     }
 }
 
@@ -121,6 +148,9 @@ void ButtonSystem::setState(State state) {
             if (last == State::TopLevel) sfx::play(sfx::sound::LOGO_SWOOSH);
             break;
         case State::TopLevel:
+        case State::Play:
+        case State::Create:
+        case State::Browse:
             if (last == State::Initial) {
                 bool impact = m_logoScale.get() > 0.6f;
                 m_logoScale.to(LOGO_TOPLEVEL_SCALE, 200, Easing::In);
@@ -139,43 +169,39 @@ void ButtonSystem::setState(State state) {
 
     // --- bar + buttons (ButtonArea / MainMenuButton.UpdateState) ---
     float delay = last == State::Initial ? 150.f : 0.f;
-    schedule(delay, [this, state] {
-        switch (state) {
-            case State::Initial:
-                m_barAlpha.to(0, 300, Easing::None);
-                m_barScaleX.to(2, 300, Easing::InSine);
-                m_barScaleY.to(0, 300, Easing::InSine);
-                for (auto b : m_left) b->setState(MenuButton::State::Contracted);
-                for (auto b : m_right) b->setState(MenuButton::State::Contracted);
-                break;
-            case State::TopLevel:
-                m_barAlpha.to(1, 300, Easing::None);
-                m_barScaleX.to(1, 400, Easing::OutQuint);
-                m_barScaleY.to(1, 400, Easing::OutQuint);
-                for (auto b : m_left) b->setState(MenuButton::State::Expanded);
-                for (auto b : m_right) b->setState(MenuButton::State::Expanded);
-                break;
-            case State::EnteringMode:
-                m_barAlpha.to(0, 300, Easing::None);
-                m_barScaleX.to(2, 300, Easing::InSine);
-                m_barScaleY.to(0, 300, Easing::InSine);
-                for (auto list : {&m_left, &m_right}) {
-                    for (auto b : *list) {
-                        if (b->getState() != MenuButton::State::Exploded) {
-                            b->setState(MenuButton::State::Contracted, 1);
-                        }
-                    }
-                }
-                break;
-        }
-    });
+    schedule(delay, [this, state] { this->updateButtons(state); });
 }
 
-void ButtonSystem::resumeTopLevel() {
+void ButtonSystem::updateButtons(State state) {
+    bool menu = isMenu(state);
+    m_barAlpha.to(menu ? 1.f : 0.f, 300, Easing::None);
+    m_barScaleX.to(menu ? 1.f : 2.f, menu ? 400 : 300, menu ? Easing::OutQuint : Easing::InSine);
+    m_barScaleY.to(menu ? 1.f : 0.f, menu ? 400 : 300, menu ? Easing::OutQuint : Easing::InSine);
+
+    for (auto list : {&m_left, &m_right}) {
+        for (auto& e : *list) {
+            auto b = e.button;
+            if (state == State::Initial) {
+                b->setState(MenuButton::State::Contracted);
+            } else if (state == State::EnteringMode) {
+                if (b->getState() != MenuButton::State::Exploded) b->setState(MenuButton::State::Contracted, 1);
+            } else if (state >= e.min && state <= e.max) {
+                b->setState(MenuButton::State::Expanded);
+            } else if (state < e.min || b->getState() == MenuButton::State::Contracted) {
+                // Ahead of us (or already folded): stay folded behind the logo.
+                b->setState(MenuButton::State::Contracted);
+            } else {
+                b->setState(MenuButton::State::Exploded);
+            }
+        }
+    }
+}
+
+void ButtonSystem::resume(State state) {
     // Coming back from another screen: logo already parked, just unfold the buttons.
     m_logoPos.set(m_logoTarget);
     m_logoScale.set(LOGO_TOPLEVEL_SCALE);
-    setState(State::TopLevel);
+    setState(isMenu(state) ? state : State::TopLevel);
 }
 
 void ButtonSystem::playExit(float durationMs) {
@@ -185,10 +211,20 @@ void ButtonSystem::playExit(float durationMs) {
 }
 
 bool ButtonSystem::back() {
-    if (m_state != State::TopLevel) return false;
-    sfx::play(sfx::sound::BACK_TO_LOGO);
-    setState(State::Initial);
-    return true;
+    switch (m_state) {
+        case State::TopLevel:
+            sfx::play(sfx::sound::BACK_TO_LOGO);
+            setState(State::Initial);
+            return true;
+        case State::Play:
+        case State::Create:
+        case State::Browse:
+            // osu! clicks its back button.
+            m_left.front().button->trigger();
+            return true;
+        default:
+            return false;
+    }
 }
 
 void ButtonSystem::layoutButtons() {
@@ -198,17 +234,19 @@ void ButtonSystem::layoutButtons() {
     float y = m_center.y;
 
     float x = m_logoTarget.x + facadeHalf;
-    for (auto b : m_right) {
+    for (auto& e : m_right) {
+        auto b = e.button;
         float w = b->flowWidth();
         b->setPosition({x + w / 2, y});
-        x += w - m_wedge;
+        x += w - std::min(w, m_wedge); // folded (zero-width) buttons take no room
     }
 
     x = m_logoTarget.x - facadeHalf;
-    for (auto b : m_left) {
+    for (auto& e : m_left) {
+        auto b = e.button;
         float w = b->flowWidth();
         b->setPosition({x - w / 2, y});
-        x -= w - m_wedge;
+        x -= w - std::min(w, m_wedge);
     }
 }
 

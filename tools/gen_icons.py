@@ -9,6 +9,7 @@ icons = [
  ('SLIDERS',0xf1de),('PEN',0xf304),('DESKTOP',0xf390),('GEM',0xf3a5),('BOX_OPEN',0xf49e),('COINS',0xf51e),
  ('SHIRT',0xf553),('MEDAL',0xf5a2),('SEARCH',0xf002),
  ('STEP_BACKWARD',0xf048),('ENVELOPE',0xf0e0),('USER_CHECK',0xf4fc),('USER_CLOCK',0xf4fd),('BAN',0xf05e),('LIST',0xf03a),('COPY',0xf0c5),('PLUS',0xf067),('THUMBS_UP',0xf164),('CLOCK',0xf017),('LINK',0xf0c1),('LAYERS',0xf5fd),('BELL_SLASH',0xf1f6),('CLOUD_UP',0xf0ee),('CLOUD_DOWN',0xf0ed),('SIGN_OUT',0xf2f5),('SIGN_IN',0xf2f6),('ROTATE',0xf021),('USER_GEAR',0xf4fe),('USER_PLUS',0xf234),('ID_CARD',0xf2c2),('STEP_FORWARD',0xf051),('SHUFFLE',0xf074),('CIRCLE_PLAY',0xf144),('CIRCLE_PAUSE',0xf28b),
+ ('CIRCLE_CHEVRON_LEFT',0xf137),('RANKING_STAR',0xe561),('LIST_CHECK',0xf0ae),('ROUTE',0xf4d7),('VAULT',0xe2c5),('DUNGEON',0xf6d9),('CALENDAR_WEEK',0xf784),('CALENDAR_DAY',0xf783),('BOLT',0xf0e7),('CHESS_ROOK',0xf447),('BOXES',0xf468),('FIST',0xf6de),('AWARD',0xf559),('RUNNING',0xf70c),('BOOKMARK',0xf02e),('FOLDER_OPEN',0xf07c),('SQUARE_PLUS',0xf0fe),('COMPASS',0xf14e),
 ]
 icons.sort(key=lambda x: x[1])
 lines = []

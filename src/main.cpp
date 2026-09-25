@@ -1,4 +1,5 @@
 #include <Geode/Geode.hpp>
+#include <Geode/modify/CreatorLayer.hpp>
 #include <Geode/modify/MenuLayer.hpp>
 
 #include "audio/MusicPlayer.hpp"
@@ -28,8 +29,9 @@ using lazer::ButtonSystem;
 namespace icon = lazer::icon;
 
 namespace {
-    // Set when a button leaves the menu, so coming back re-opens the button bar like osu!.
-    bool g_returnToTopLevel = false;
+    // Set when a button leaves the menu, so coming back re-opens the menu it
+    // was in (top level or a submenu). Initial = nothing to restore.
+    ButtonSystem::State g_returnState = ButtonSystem::State::Initial;
     // The intro plays once, on the first menu after the game starts.
     bool g_introPlayed = false;
     // GD's "quit game?" popup, so its "yes" can play the outro first.
@@ -112,6 +114,38 @@ namespace {
     }
 }
 
+// GD's CreatorLayer is the old hub for everything online. Its pages are now
+// reached from the button system and the toolbar, through a hidden instance
+// (its handlers show GD's own screens and popups).
+void creatorAction(void (CreatorLayer::*handler)(CCObject*)) {
+    static Ref<CreatorLayer> layer;
+    layer = CreatorLayer::create();
+    if (!layer) return;
+    // Handlers poke at sprites that only exist in the visible hub (the quests
+    // badge, the vault door): give them stand-ins.
+    for (auto sprite : {&layer->m_questsSprite, &layer->m_secretDoorSprite}) {
+        if (!*sprite) {
+            *sprite = CCSprite::create();
+            layer->addChild(*sprite);
+        }
+    }
+    (layer.data()->*handler)(nullptr);
+}
+
+void showScene(CCScene* scene) {
+    CCDirector::get()->replaceScene(CCTransitionFade::create(0.5f, scene));
+}
+
+// Screens that go "back" to CreatorLayer come back to the menu instead.
+class $modify(LazerCreatorLayer, CreatorLayer) {
+    static CCScene* scene() {
+        auto mod = Mod::get();
+        if (!mod->getSettingValue<bool>("enabled")) return CreatorLayer::scene();
+        if (g_returnState == ButtonSystem::State::Initial) g_returnState = ButtonSystem::State::TopLevel;
+        return MenuLayer::scene(false);
+    }
+};
+
 class $modify(LazerMenuLayer, MenuLayer) {
     struct Fields {
         ButtonSystem* buttons = nullptr;
@@ -144,24 +178,63 @@ class $modify(LazerMenuLayer, MenuLayer) {
 
         this->setupBackground();
 
-        auto leave = [](auto fn) {
-            return [fn] {
-                g_returnToTopLevel = true;
+        using State = ButtonSystem::State;
+        // A button that leaves the menu, remembering which menu to come back to.
+        auto leave = [](State from, auto fn) {
+            return [from, fn] {
+                g_returnState = from;
                 fn();
             };
         };
+        auto creator = [leave](State from, void (CreatorLayer::*handler)(CCObject*)) {
+            return leave(from, [handler] { creatorAction(handler); });
+        };
 
-        auto buttons = ButtonSystem::create(
-            {
-                {"settings", icon::GEAR, {85, 85, 85}, [this] { this->toggleSettings(); }, false},
-            },
-            {
-                {"play", icon::PLAY, {102, 68, 204}, leave([this] { this->onPlay(nullptr); }), true, lazer::sfx::sound::MENU_PLAY_SELECT},
-                {"create", icon::PEN, {238, 170, 0}, leave([this] { this->onCreator(nullptr); })},
-                {"icons", icon::SHIRT, {165, 204, 0}, leave([this] { this->onGarage(nullptr); })},
-                {"exit", icon::CIRCLE_XMARK, {238, 51, 153}, [this] { this->onQuit(nullptr); }, false},
-            }
-        );
+        // The ButtonSystem* is only known after create(); submenu buttons reach it through the fields.
+        auto open = [this](State state) {
+            return [this, state] { if (m_fields->buttons) m_fields->buttons->setState(state); };
+        };
+
+        constexpr ccColor3B PLAY_SUB {94, 63, 186};
+        constexpr ccColor3B CREATE_SUB {220, 160, 0};
+        constexpr ccColor3B BROWSE_SUB {140, 180, 0};
+        auto defaultSound = lazer::sfx::sound::MENU_DEFAULT_SELECT;
+
+        auto buttons = ButtonSystem::create({
+            {"settings", icon::GEAR, {85, 85, 85}, [this] { this->toggleSettings(); }, false, defaultSound, State::TopLevel, true},
+
+            {"play", icon::PLAY, {102, 68, 204}, open(State::Play), false, lazer::sfx::sound::MENU_PLAY_SELECT},
+            {"create", icon::PEN, {238, 170, 0}, open(State::Create), false, lazer::sfx::sound::MENU_PLAY_SELECT},
+            {"browse", icon::COMPASS, {165, 204, 0}, open(State::Browse), false},
+            {"icons", icon::SHIRT, {0, 160, 200}, leave(State::TopLevel, [this] { this->onGarage(nullptr); })},
+            {"exit", icon::CIRCLE_XMARK, {238, 51, 153}, [this] { this->onQuit(nullptr); }, false},
+
+            // play: everything you can play right away
+            {"solo", icon::RUNNING, {102, 68, 204}, leave(State::Play, [this] { this->onPlay(nullptr); }), true,
+             lazer::sfx::sound::MENU_PLAY_SELECT, State::Play},
+            {"saved", icon::BOOKMARK, PLAY_SUB, creator(State::Play, &CreatorLayer::onSavedLevels), true, defaultSound, State::Play},
+            {"daily", icon::CALENDAR_DAY, PLAY_SUB, [] { creatorAction(&CreatorLayer::onDailyLevel); }, false, defaultSound, State::Play},
+            {"gauntlets", icon::FIST, PLAY_SUB, creator(State::Play, &CreatorLayer::onGauntlets), true, defaultSound, State::Play},
+            {"map packs", icon::BOXES, PLAY_SUB, creator(State::Play, &CreatorLayer::onMapPacks), true, defaultSound, State::Play},
+            {"the tower", icon::CHESS_ROOK, PLAY_SUB, creator(State::Play, &CreatorLayer::onAdventureMap), true, defaultSound, State::Play},
+
+            // create: your own levels
+            {"my levels", icon::FOLDER_OPEN, {238, 170, 0}, creator(State::Create, &CreatorLayer::onMyLevels), true, defaultSound, State::Create},
+            {"new level", icon::SQUARE_PLUS, CREATE_SUB, leave(State::Create, [] {
+                showScene(EditLevelLayer::scene(GameLevelManager::get()->createNewLevel()));
+            }), true, defaultSound, State::Create},
+            {"my lists", icon::LIST, CREATE_SUB, leave(State::Create, [] {
+                showScene(LevelBrowserLayer::scene(GJSearchObject::create(SearchType::MyLists)));
+            }), true, defaultSound, State::Create},
+
+            // browse: other people's levels
+            {"search", icon::SEARCH, {165, 204, 0}, creator(State::Browse, &CreatorLayer::onOnlineLevels), true, defaultSound, State::Browse},
+            {"featured", icon::STAR, BROWSE_SUB, creator(State::Browse, &CreatorLayer::onFeaturedLevels), true, defaultSound, State::Browse},
+            {"lists", icon::LAYERS, BROWSE_SUB, creator(State::Browse, &CreatorLayer::onTopLists), true, defaultSound, State::Browse},
+            {"hall of fame", icon::AWARD, BROWSE_SUB, leave(State::Browse, [] {
+                showScene(LevelBrowserLayer::scene(GJSearchObject::create(SearchType::HallOfFame)));
+            }), true, defaultSound, State::Browse},
+        });
         buttons->setID("button-system"_spr);
         this->addChild(buttons, 10);
         m_fields->buttons = buttons;
@@ -197,9 +270,9 @@ class $modify(LazerMenuLayer, MenuLayer) {
             static_cast<LazerMenuLayer*>(self.data())->collectToolbarButtons();
         });
 
-        if (g_returnToTopLevel) {
-            g_returnToTopLevel = false;
-            buttons->resumeTopLevel();
+        if (g_returnState != ButtonSystem::State::Initial) {
+            buttons->resume(g_returnState);
+            g_returnState = ButtonSystem::State::Initial;
         }
 
         if (intro) {
@@ -212,6 +285,17 @@ class $modify(LazerMenuLayer, MenuLayer) {
             this->addChild(sequence, 1000);
         }
         return true;
+    }
+
+    // Some screens (solo's level select) are pushed over the menu rather than
+    // replacing it, so going back returns to this same layer mid-"leaving".
+    void onEnter() {
+        MenuLayer::onEnter();
+        auto buttons = m_fields->buttons;
+        if (buttons && buttons->getState() == ButtonSystem::State::EnteringMode) {
+            buttons->resume(g_returnState);
+            g_returnState = ButtonSystem::State::Initial;
+        }
     }
 
     void onQuit(CCObject* sender) {
@@ -308,6 +392,21 @@ class $modify(LazerMenuLayer, MenuLayer) {
             menu->setVisible(false);
         }
 
+        // The rest of GD's creator hub.
+        auto hub = [this](void (CreatorLayer::*handler)(CCObject*)) {
+            return [this, handler] {
+                g_returnState = m_fields->buttons ? m_fields->buttons->getState() : ButtonSystem::State::TopLevel;
+                creatorAction(handler);
+            };
+        };
+        toolbar->addRight({lazer::makeIcon(icon::RANKING_STAR, 1), "leaderboards", hub(&CreatorLayer::onLeaderboards)});
+        toolbar->addRight({lazer::makeIcon(icon::LIST_CHECK, 1), "quests", hub(&CreatorLayer::onChallenge)});
+        toolbar->addRight({lazer::makeIcon(icon::ROUTE, 1), "paths", hub(&CreatorLayer::onPaths)});
+        toolbar->addRight({lazer::makeIcon(icon::CALENDAR_WEEK, 1), "weekly demon", hub(&CreatorLayer::onWeeklyLevel)});
+        toolbar->addRight({lazer::makeIcon(icon::BOLT, 1), "event level", hub(&CreatorLayer::onEventLevel)});
+        toolbar->addRight({lazer::makeIcon(icon::VAULT, 1), "vault", hub(&CreatorLayer::onSecretVault)});
+        toolbar->addRight({lazer::makeIcon(icon::DUNGEON, 1), "treasure room", hub(&CreatorLayer::onTreasureRoom)});
+
         // Profile: the vanilla button lives in profile-menu (or main-menu on some setups).
         CCMenuItem* profile = nullptr;
         for (auto menuId : {"profile-menu", "main-menu"}) {
@@ -320,7 +419,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
         auto panel = lazer::AccountPanel::create(toolbar->height(), {
             [profileRef] { if (profileRef) profileRef->activate(); },
             [this] {
-                g_returnToTopLevel = true;
+                g_returnState = m_fields->buttons ? m_fields->buttons->getState() : ButtonSystem::State::TopLevel;
                 this->onGarage(nullptr);
             },
         });
