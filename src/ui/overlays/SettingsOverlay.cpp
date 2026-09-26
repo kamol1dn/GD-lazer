@@ -415,7 +415,13 @@ void SettingsOverlay::update(float dt) {
     bool interactive = m_open && m_slide.get() > 0.5f;
 
     // Sidebar expands while hovered (SettingsSidebar / ExpandingContainer).
+#ifdef GEODE_IS_MOBILE
+    // Touchscreens have no hover: the "mouse" stays where the last tap was, so
+    // the sidebar would stay open over the settings. Keep it to icons.
+    bool overSidebar = false;
+#else
     bool overSidebar = interactive && nodeContains(m_sidebar, mouse);
+#endif
     if (overSidebar != (m_sidebarExpand.target() > 0.5f)) {
         m_sidebarExpand.to(overSidebar ? 1.f : 0.f, 500, Easing::OutQuint);
     }

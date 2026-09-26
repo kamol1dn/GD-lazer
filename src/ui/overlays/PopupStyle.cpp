@@ -170,7 +170,8 @@ class $modify(LazerPopup, FLAlertLayer) {
         if (m_fields->styled) return;
         m_fields->styled = true;
         if (!Mod::get()->getSettingValue<bool>("restyle-popups")) return;
-        if (!isVanillaClass(this)) return;
+        // Our own popups (built from Geode's popup classes) opt in with this marker.
+        if (!isVanillaClass(this) && !this->getUserObject("restyle"_spr)) return;
         // GD pages we run hidden behind our own UI (profiles, chests).
         if (this->getUserObject("hidden"_spr)) return;
         restylePopup(this);

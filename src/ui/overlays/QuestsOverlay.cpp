@@ -68,28 +68,37 @@ bool QuestsOverlay::init(float topInset) {
     float k = m_k;
     CCSize cardSize {std::min(size.width - 80 * k, 900 * k), 118 * k};
     float gap = 18 * k;
-    float total = cardSize.height * 3 + gap * 2;
-    float top = size.height / 2 + total / 2 + 14 * k;
-    float x = (size.width - cardSize.width) / 2;
+    float statusH = 44 * k;
+    float margin = 20 * k;
+    // Cards plus the timer line under them; shrink it all to fit short screens
+    // (phones run a bigger UI scale).
+    float total = cardSize.height * 3 + gap * 2 + statusH;
+    float scale = std::min({1.f, (size.height - margin * 2) / total, (size.width - 40 * k) / cardSize.width});
+    auto column = CCNode::create();
+    column->setContentSize({cardSize.width, total});
+    column->setAnchorPoint({0.5f, 0.5f});
+    column->setPosition({size.width / 2, size.height / 2});
+    column->setScale(scale);
+    body()->addChild(column);
     for (int i = 0; i < 3; i++) {
-        m_cards[i] = makeCard(i + 1, {x, top - (i + 1) * cardSize.height - i * gap}, cardSize);
+        m_cards[i] = makeCard(column, i + 1, {0, total - (i + 1) * cardSize.height - i * gap}, cardSize);
     }
 
     m_status = makeText("", Weight::Regular, 18 * k);
     m_status->setColor(theme::rgb(m_scheme.content2()));
-    m_status->setPosition({size.width / 2, top - total - 30 * k});
-    body()->addChild(m_status);
+    m_status->setPosition({cardSize.width / 2, statusH / 2});
+    column->addChild(m_status);
     return true;
 }
 
-QuestsOverlay::Card QuestsOverlay::makeCard(int slot, CCPoint origin, CCSize size) {
+QuestsOverlay::Card QuestsOverlay::makeCard(CCNode* parent, int slot, CCPoint origin, CCSize size) {
     Card card;
     float k = m_k;
     card.bg = RoundedBox::create(size, 14 * k, m_scheme.background4());
     card.bg->setShadow(14 * k, {0, 0, 0, 80});
     card.bg->setAnchorPoint({0, 0});
     card.bg->setPosition(origin);
-    body()->addChild(card.bg);
+    parent->addChild(card.bg);
 
     // What to collect, in a tile on the left.
     float tile = size.height - 28 * k;

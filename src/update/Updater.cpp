@@ -51,15 +51,24 @@ namespace {
         if (done) done();
     }
 
+    // Shows a popup in the Lazer style (PopupStyle restyles popups carrying this marker).
+    template <class T>
+    T* lazerStyled(T* popup) {
+        popup->setUserObject("restyle"_spr, CCBool::create(true));
+        popup->show();
+        return popup;
+    }
+
     void showRestartPrompt() {
-        createQuickPopup(
+        lazerStyled(createQuickPopup(
             "Lazer UI updated",
             fmt::format("<cg>{}</c> is installed. Restart Geometry Dash to use it.", g_latest),
             "Later", "Restart",
             [](auto, bool restart) {
                 if (restart) game::restart(true);
-            }
-        );
+            },
+            false
+        ));
     }
 
     void install() {
@@ -100,13 +109,14 @@ namespace {
                     g_state = State::Available; // still out there, can retry
                     g_error = error;
                     log::warn("Update download failed: {}", error);
-                    createQuickPopup(
+                    lazerStyled(createQuickPopup(
                         "Update failed", fmt::format("Couldn't install {}: {}", g_latest, error),
                         "OK", "Open releases",
                         [](auto, bool open) {
                             if (open) web::openLinkInBrowser(RELEASES_PAGE);
-                        }
-                    );
+                        },
+                        false
+                    ));
                     return;
                 }
                 g_state = State::Installed;
@@ -120,9 +130,9 @@ namespace {
         g_prompted = true;
         auto text = fmt::format("Lazer UI **{}** is out. You have {}.\n\n", g_latest, Mod::get()->getVersion().toVString());
         text += g_notes.empty() ? "No release notes for this version." : g_notes;
-        MDPopup::create(fmt::format("Update to {}", g_latest), text, "Later", "Update", [](bool update) {
+        lazerStyled(MDPopup::create(fmt::format("Update to {}", g_latest), text, "Later", "Update", [](bool update) {
             if (update) install();
-        })->show();
+        }));
     }
 }
 
@@ -203,14 +213,14 @@ void checkManually() {
                 showUpdatePrompt();
                 break;
             case State::UpToDate:
-                createQuickPopup(
+                lazerStyled(createQuickPopup(
                     "No updates", fmt::format("You have the latest version ({}).", Mod::get()->getVersion().toVString()),
-                    "OK", nullptr, [](auto, bool) {}
-                );
+                    "OK", nullptr, [](auto, bool) {}, false
+                ));
                 break;
             case State::Failed:
-                createQuickPopup("Update check failed", fmt::format("Couldn't check for updates: {}", g_error),
-                                 "OK", nullptr, [](auto, bool) {});
+                lazerStyled(createQuickPopup("Update check failed", fmt::format("Couldn't check for updates: {}", g_error),
+                                             "OK", nullptr, [](auto, bool) {}, false));
                 break;
             default:
                 break;

@@ -34,7 +34,7 @@ protected:
         Tweened<float> glow {0.f};
         std::string shown; // what the card currently shows, to skip redundant updates
     };
-    Card makeCard(int slot, cocos2d::CCPoint origin, cocos2d::CCSize size);
+    Card makeCard(cocos2d::CCNode* parent, int slot, cocos2d::CCPoint origin, cocos2d::CCSize size);
     void updateCard(int slot, float dt);
     void claim(int slot);
 

@@ -44,4 +44,17 @@ echo "Phone: $device"
 "$ADB" -s "$device" push "$GEODE" "$MODS"
 "$ADB" -s "$device" shell am force-stop "$PACKAGE"
 "$ADB" -s "$device" shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+
+# The launcher waits on its "Launch" button: find it in the UI dump and tap it.
+for _ in $(seq 1 10); do
+    sleep 1
+    bounds=$("$ADB" -s "$device" exec-out uiautomator dump /dev/tty 2>/dev/null |
+        grep -o 'text="Launch"[^>]*bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]"' |
+        grep -o '\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]' | head -1)
+    if [[ -n "$bounds" ]]; then
+        read -r x1 y1 x2 y2 <<< "$(tr -c '0-9' ' ' <<< "$bounds")"
+        "$ADB" -s "$device" shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
+        break
+    fi
+done
 echo "Installed and restarted Geometry Dash."
