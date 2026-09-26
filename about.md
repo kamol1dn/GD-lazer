@@ -29,7 +29,7 @@ All optional:
 
 ## Credits
 
-- UI sounds from [osu-resources](https://github.com/ppy/osu-resources) by ppy Pty Ltd, licensed under [CC-BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Converted from WAV to Ogg Vorbis.
+- UI sounds from [osu-resources](https://github.com/ppy/osu-resources) by ppy Pty Ltd, licensed under [CC-BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Converted from WAV to Ogg Vorbis. The intro plays the opening of osu!'s "triangles" theme by cYsmix (voice removed from the first second) and the outro its "see you next time" voice line, both from the same repository.
 - Font: Outfit (SIL Open Font License). Icons: Font Awesome Free (solid).
 - Screenshots of RobTop's levels from the Geometry Dash Wiki (geometry-dash.fandom.com).
 - Level thumbnails from the [Level Thumbnails](https://levelthumbs.prevter.me) community.

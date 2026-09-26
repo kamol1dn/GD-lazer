@@ -1,6 +1,7 @@
 #include "SideFlashes.hpp"
 
 #include "../../audio/AudioAnalyzer.hpp"
+#include "../core/PlayerPalette.hpp"
 
 #include <algorithm>
 
@@ -14,7 +15,6 @@ namespace {
     constexpr float KIAI_MULTIPLIER = (1 - AMPLITUDE_DEAD_ZONE * 0.95f) / 0.8f;
     constexpr float FADE_IN_MS = 65.f;
     constexpr float BOX_WIDTH = 200.f; // osu! pixels; the box is 2x this, half off-screen
-    constexpr ccColor3B BLUE {0x66, 0xcc, 0xff}; // OsuColour.Blue
     constexpr float GLOW_ALPHA = 0.6f;
 }
 
@@ -36,10 +36,12 @@ bool SideFlashes::init() {
     float k = win.height / 768.f;
     float width = BOX_WIDTH * 2 * k;
     GLubyte glow = static_cast<GLubyte>(GLOW_ALPHA * 255);
+    // osu! flashes blue; ours use the player's glow colour, like the logo's visualiser.
+    auto const glowColor = PlayerPalette::current().visualiser;
     for (int side = 0; side < 2; side++) {
         // Bright at the outer edge, fading to nothing towards the centre.
-        ccColor4B outer {BLUE.r, BLUE.g, BLUE.b, glow};
-        ccColor4B inner {BLUE.r, BLUE.g, BLUE.b, 0};
+        ccColor4B outer {glowColor.r, glowColor.g, glowColor.b, glow};
+        ccColor4B inner {glowColor.r, glowColor.g, glowColor.b, 0};
         auto box = CCLayerGradient::create(side == 0 ? outer : inner, side == 0 ? inner : outer, {1, 0});
         box->setContentSize({width, win.height * 1.5f});
         // Half off-screen, so the edges never show while the background moves.

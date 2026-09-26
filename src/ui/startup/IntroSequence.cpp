@@ -2,6 +2,7 @@
 
 #include "../../audio/AudioAnalyzer.hpp"
 #include "../../audio/MusicPlayer.hpp"
+#include "../../audio/Sfx.hpp"
 #include "../../integrations/ModIntegrations.hpp"
 #include "../core/Text.hpp"
 
@@ -28,18 +29,47 @@ namespace {
     constexpr float SCALE_START = 1.2f;
     constexpr float SCALE_ADJUST = 0.8f;
 
-    // IntroScreen.StartTrack for a non-theme song: starts at silence and swells in.
-    constexpr float TRACK_START = 600;  // IntroCircles.TRACK_START_DELAY
-    constexpr float TRACK_FADE = 2600;
-    // The reveal waits for the song's next beat inside this window.
-    constexpr float REVEAL_EARLIEST = LOGO_2 - 50;
-    constexpr float REVEAL_LATEST = LOGO_2 + 300;
+    // The menu song starts on the reveal and fades in as the theme fades out.
+    constexpr float TRACK_FADE = 1800;
 
     constexpr float TIME_BETWEEN_TRIANGLES = 22;
     constexpr float TRIANGLE_LIFE = 120;
     constexpr float RULESET_ICON = 30;
 
-    constexpr ccColor4B PINK {255, 102, 170, 255};
+    constexpr float PI = 3.14159265f;
+
+    // Closed polyline round a rounded square, starting at the middle of its
+    // top edge and running clockwise (anticlockwise if `ccw`).
+    std::vector<CCPoint> roundedSquare(float side, float corner, bool ccw) {
+        float h = side / 2 - corner;
+        CCPoint centres[4] {{h, h}, {h, -h}, {-h, -h}, {-h, h}}; // clockwise from top-right
+        std::vector<CCPoint> pts {{0, side / 2}};
+        for (int c = 0; c < 4; c++) {
+            float start = PI / 2 - c * PI / 2;
+            for (int i = 0; i <= 8; i++) {
+                float a = start - (PI / 2) * i / 8;
+                pts.push_back(centres[c] + CCPoint(std::cos(a), std::sin(a)) * corner);
+            }
+        }
+        pts.push_back({0, side / 2});
+        if (ccw) std::reverse(pts.begin(), pts.end());
+        return pts;
+    }
+
+    // Clockwise circle from `startAngle`.
+    std::vector<CCPoint> circle(float radius, float startAngle, int segments) {
+        std::vector<CCPoint> pts;
+        for (int i = 0; i <= segments; i++) {
+            float a = startAngle - 2 * PI * i / segments;
+            pts.push_back(CCPoint(std::cos(a), std::sin(a)) * radius);
+        }
+        return pts;
+    }
+
+    // `progress` remapped to 0..1 over [from, to], eased.
+    float stage(float progress, float from, float to) {
+        return static_cast<float>(ease(Easing::OutQuad, std::clamp((progress - from) / (to - from), 0.f, 1.f)));
+    }
 
     std::mt19937& rng() {
         static std::mt19937 r {std::random_device {}()};
@@ -70,6 +100,7 @@ bool IntroSequence::init(float logoRadius, std::function<void()> onReveal) {
     m_onReveal = std::move(onReveal);
     m_win = CCDirector::get()->getWinSize();
     m_k = m_win.height / 768.f;
+    m_palette = PlayerPalette::current();
     CCPoint center = m_win / 2;
 
     m_content = CCNode::create();
@@ -117,14 +148,12 @@ bool IntroSequence::init(float logoRadius, std::function<void()> onReveal) {
     m_logoContainer->addChild(m_logo);
 
     float r = m_logoBaseRadius;
-    m_logoDisc = RoundedBox::create({r * 2, r * 2}, r, PINK);
-    m_logoDisc->setScale(0);
-    m_logo->addChild(m_logoDisc);
-    m_logoText = makeText("GD", Weight::Bold, r * 0.95f);
-    m_logoText->setOpacity(0);
-    m_logo->addChild(m_logoText, 1);
-    m_logoRing = CCDrawNode::create();
-    m_logo->addChild(m_logoRing, 2);
+    m_logoDraw = CCDrawNode::create();
+    m_logo->addChild(m_logoDraw);
+    // The menu logo's rim, and a cube about the size of its centre icon.
+    m_ringPath = circle(r * 0.96f, PI / 2, 128);
+    m_cubePath = roundedSquare(r * 0.8f, r * 0.1f, false);
+    m_innerPath = roundedSquare(r * 0.36f, r * 0.05f, true);
 
     this->setTouchEnabled(true);
     this->setKeypadEnabled(true);
@@ -204,30 +233,47 @@ void IntroSequence::layoutRulesets() {
     }
 }
 
-// The logo's white rim drawn round clockwise from the top, the pink disc
-// filling in behind it and the "GD" fading in last.
+void IntroSequence::drawStroke(std::vector<CCPoint> const& path, float progress, float width,
+                               ccColor3B from, ccColor3B to) {
+    if (progress <= 0 || path.size() < 2) return;
+    // By length, so the stroke advances at a constant speed.
+    std::vector<float> lengths {0};
+    for (size_t i = 1; i < path.size(); i++) lengths.push_back(lengths.back() + ccpDistance(path[i - 1], path[i]));
+    float total = lengths.back(), drawTo = total * std::min(progress, 1.f);
+    auto colorAt = [&](float t) {
+        auto mix = [t](GLubyte a, GLubyte b) { return (a + (b - a) * t) / 255.f; };
+        return ccColor4F {mix(from.r, to.r), mix(from.g, to.g), mix(from.b, to.b), 1.f};
+    };
+    for (size_t i = 1; i < path.size() && lengths[i - 1] < drawTo; i++) {
+        CCPoint a = path[i - 1], b = path[i];
+        if (lengths[i] > drawTo) b = a + (b - a) * ((drawTo - lengths[i - 1]) / (lengths[i] - lengths[i - 1]));
+        m_logoDraw->drawSegment(a, b, width / 2, colorAt(lengths[i] / total));
+    }
+}
+
+// osu!'s LogoAnimation: thick strokes in the player's two colours trace the
+// ring, then the cube and its inner square, each with a thin glow-coloured
+// highlight racing along just behind. At the reveal the real logo takes over
+// under the flash.
 void IntroSequence::drawLogo(float progress) {
     float r = m_logoBaseRadius;
-    float rim = r * 0.08f;
-    m_logoRing->clear();
-    int segments = std::max(1, static_cast<int>(96 * progress));
-    constexpr float PI = 3.14159265f;
-    auto at = [&](float t) {
-        float angle = PI / 2 - 2 * PI * t;
-        return CCPoint(std::cos(angle), std::sin(angle)) * (r - rim / 2);
-    };
-    if (progress > 0) {
-        for (int i = 0; i < segments; i++) {
-            m_logoRing->drawSegment(at(progress * i / segments), at(progress * (i + 1) / segments), rim / 2, {1, 1, 1, 1});
-        }
-    }
-    float fill = std::clamp((progress - 0.25f) / 0.75f, 0.f, 1.f);
-    m_logoDisc->setScale(static_cast<float>(ease(Easing::OutCubic, fill)));
-    m_logoText->setOpacity(static_cast<GLubyte>(std::clamp((progress - 0.6f) / 0.4f, 0.f, 1.f) * 255));
+    auto a = m_palette.gradientA, b = m_palette.gradientB, glow = m_palette.rim;
+    ccColor3B white {255, 255, 255};
+    m_logoDraw->clear();
+
+    drawStroke(m_ringPath, stage(progress, 0.f, 0.7f), r * 0.08f, a, b);
+    drawStroke(m_cubePath, stage(progress, 0.18f, 0.8f), r * 0.07f, b, a);
+    drawStroke(m_innerPath, stage(progress, 0.4f, 0.92f), r * 0.06f, a, b);
+
+    drawStroke(m_ringPath, stage(progress, 0.08f, 0.8f), r * 0.022f, glow, white);
+    drawStroke(m_cubePath, stage(progress, 0.28f, 0.9f), r * 0.02f, glow, white);
+    drawStroke(m_innerPath, stage(progress, 0.5f, 1.f), r * 0.018f, glow, white);
 }
 
 void IntroSequence::reveal() {
     m_revealed = true;
+    m_revealMs = m_timeMs;
+    MusicPlayer::get().releaseIntro();
     m_content->setVisible(false);
     this->setKeypadEnabled(false);
     this->setTouchEnabled(false);
@@ -258,6 +304,7 @@ void IntroSequence::update(float dt) {
         }
         m_started = true;
         dt = 0;
+        sfx::playCue(sfx::cue::INTRO);
     }
 
     float ms = dt * 1000.f;
@@ -265,18 +312,13 @@ void IntroSequence::update(float dt) {
     m_timeMs += ms;
     auto crossed = [this](float t) { return m_lastMs < t && m_timeMs >= t; };
 
-    // --- music ---
-    if (crossed(TRACK_START)) {
-        MusicPlayer::get().releaseIntro();
-        m_trackStarted = true;
-    }
-    float fade = m_timeMs < TRACK_START ? 0.f : std::min(1.f, (m_timeMs - TRACK_START) / TRACK_FADE);
-    setMusicVolume(static_cast<float>(ease(Easing::InCubic, fade)));
-
     if (m_revealed) {
+        float fade = std::min(1.f, (m_timeMs - m_revealMs) / TRACK_FADE);
+        setMusicVolume(static_cast<float>(ease(Easing::OutQuad, fade)));
         if (fade >= 1.f) this->removeFromParent();
         return;
     }
+    setMusicVolume(0);
 
     // --- text ---
     if (crossed(TEXT_1)) setText("wel");
@@ -333,10 +375,8 @@ void IntroSequence::update(float dt) {
 
     updateTriangles(ms);
 
-    // --- reveal, on the song's beat ---
-    if (crossed(REVEAL_EARLIEST)) m_beatAtStart = audio.beatIndex();
-    bool onBeat = m_timeMs >= REVEAL_EARLIEST && audio.beatIndex() != m_beatAtStart;
-    if (onBeat || m_timeMs >= REVEAL_LATEST) reveal();
+    // --- reveal, on the theme's downbeat ---
+    if (m_timeMs >= LOGO_2) reveal();
 }
 
 } // namespace lazer

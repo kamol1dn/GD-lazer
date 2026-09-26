@@ -56,6 +56,10 @@ void play(char const* name, float pitchVariation, float frequency) {
     FMODAudioEngine::sharedEngine()->playEffect(pathFor(name), frequency, 0.f, volume);
 }
 
+void playCue(char const* name) {
+    FMODAudioEngine::sharedEngine()->playEffect(pathFor(name), 1.f, 0.f, 1.f);
+}
+
 void hover(char const* name) {
     // HoverSampleDebounceComponent shares one timestamp across every hover sound.
     static char const* const HOVER_KEY = "hover";

@@ -20,6 +20,15 @@ public:
     float getRadius() const { return m_radius; }
 
     void setFillColor(cocos2d::ccColor4B c) { m_fill = c; }
+    // Animated two-colour fill between the fill colour and `second`: `angle`
+    // (radians) turns the gradient, `phase` slides it. Animate both for motion.
+    void setGradient(cocos2d::ccColor4B second, float angle, float phase) {
+        m_gradient = true;
+        m_fill2 = second;
+        m_gradientAngle = angle;
+        m_gradientPhase = phase;
+    }
+    void clearGradient() { m_gradient = false; }
     void setBorder(float width, cocos2d::ccColor4B color) { m_borderWidth = width; m_borderColor = color; }
     // Shadow extends `size` units outside the box, fading from `color`.
     void setShadow(float size, cocos2d::ccColor4B color) { m_shadowSize = size; m_shadowColor = color; }
@@ -47,6 +56,10 @@ protected:
     cocos2d::ccColor4B m_shadowColor {0, 0, 0, 100};
     cocos2d::CCTexture2D* m_texture = nullptr;
     float m_textureShift = 0;
+    bool m_gradient = false;
+    cocos2d::ccColor4B m_fill2 {255, 255, 255, 255};
+    float m_gradientAngle = 0;
+    float m_gradientPhase = 0;
 };
 
 } // namespace lazer

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Easing.hpp"
+#include "../core/PlayerPalette.hpp"
 #include "../core/RoundedBox.hpp"
 #include "LogoVisualisation.hpp"
 
@@ -8,6 +9,13 @@
 #include <functional>
 
 namespace lazer {
+
+// The player's cube as the logo's centrepiece, `size` units tall.
+cocos2d::CCNode* makeLogoIcon(PlayerPalette const& palette, float size);
+
+// The gradient's slow drift, shared by the intro so the two logos match.
+inline constexpr float LOGO_GRADIENT_SPEED = 0.9f;      // phase, radians per second
+inline constexpr float LOGO_GRADIENT_TURN_SPEED = 0.25f; // angle, radians per second
 
 // The pulsing main-menu logo, after osu.Game/Screens/Menu/OsuLogo.cs.
 // Nested containers each own one kind of motion so they compose cleanly:
@@ -36,6 +44,10 @@ protected:
 
     float m_radius = 0;
     std::function<void()> m_callback;
+    PlayerPalette m_palette;
+    float m_gradientPhase = 0;
+    float m_gradientAngle = 0.6f;
+    float m_gradientBoost = 0; // extra drift speed kicked by beats
 
     cocos2d::CCNode* m_bounce = nullptr;
     cocos2d::CCNode* m_beat = nullptr;

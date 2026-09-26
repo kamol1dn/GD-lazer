@@ -5,6 +5,8 @@
 #include "../core/Text.hpp"
 #include "../core/Theme.hpp"
 
+#include <Geode/binding/GameManager.hpp>
+#include <Geode/binding/SimplePlayer.hpp>
 #include <Geode/utils/cocos.hpp>
 
 using namespace cocos2d;
@@ -12,13 +14,23 @@ using namespace cocos2d;
 namespace lazer {
 
 namespace {
-    constexpr ccColor4B PINK {255, 102, 170, 255}; // osu!'s signature #ff66aa
     constexpr ccColor4B WHITE {255, 255, 255, 255};
     // OsuLogo.cs
     constexpr float EARLY_ACTIVATION = 60.f;
     constexpr float VISUALISER_ALPHA = 0.5f;
 
     GLubyte toByte(float a) { return static_cast<GLubyte>(std::clamp(a, 0.f, 1.f) * 255.f); }
+}
+
+CCNode* makeLogoIcon(PlayerPalette const& palette, float size) {
+    auto gm = GameManager::get();
+    auto player = SimplePlayer::create(1);
+    player->updatePlayerFrame(std::max(1, gm->getPlayerFrame()), IconType::Cube);
+    player->setColors(palette.iconA, palette.iconB);
+    player->disableGlowOutline();
+    // A cube is ~30 units tall at scale 1.
+    player->setScale(size / 30.f);
+    return player;
 }
 
 LazerLogo* LazerLogo::create(float radius) {
@@ -34,6 +46,7 @@ LazerLogo* LazerLogo::create(float radius) {
 bool LazerLogo::init(float radius) {
     if (!CCNode::init()) return false;
     m_radius = radius;
+    m_palette = PlayerPalette::current();
 
     CCSize size {radius * 2, radius * 2};
     this->setContentSize(size);
@@ -55,17 +68,19 @@ bool LazerLogo::init(float radius) {
     m_visualiser = LogoVisualisation::create(size.width);
     m_visualiser->setPosition(size / 2);
     m_visualiser->setOpacity(toByte(VISUALISER_ALPHA));
+    m_visualiser->setColor(m_palette.visualiser);
     m_hover->addChild(m_visualiser, -2);
 
-    m_disc = RoundedBox::create(size, radius, PINK);
-    m_disc->setBorder(radius * 0.08f, WHITE);
+    m_disc = RoundedBox::create(size, radius, withAlpha(m_palette.gradientA));
+    m_disc->setGradient(withAlpha(m_palette.gradientB), m_gradientAngle, m_gradientPhase);
+    m_disc->setBorder(radius * 0.08f, withAlpha(m_palette.rim));
     m_disc->setShadow(radius * 0.25f, {0, 0, 0, 90});
     m_disc->setPosition(size / 2);
     m_hover->addChild(m_disc);
 
-    auto label = makeText("GD", Weight::Bold, radius * 0.95f);
-    label->setPosition(size / 2);
-    m_hover->addChild(label);
+    auto icon = makeLogoIcon(m_palette, radius * 0.9f);
+    icon->setPosition(size / 2);
+    m_hover->addChild(icon);
 
     // Soft white copy of the logo that swells outwards on each beat.
     m_ripple = RoundedBox::create(size, radius, WHITE);
@@ -75,7 +90,7 @@ bool LazerLogo::init(float radius) {
 
     // Ring that expands and fades out on impact.
     m_impact = RoundedBox::create(size, radius, {0, 0, 0, 0});
-    m_impact->setBorder(radius * 0.06f, WHITE);
+    m_impact->setBorder(radius * 0.06f, withAlpha(m_palette.rim));
     m_impact->setPosition(size / 2);
     m_impact->setOpacity(0);
     m_bounce->addChild(m_impact, -1);
@@ -113,6 +128,9 @@ void LazerLogo::onBeat(float amplitude, float beatLength) {
     m_rippleScale.to(m_amplitudeScale * (1 + 0.04f * adjust), beatLength, Easing::OutQuint);
     m_rippleAlpha.set(0.15f * adjust);
     m_rippleAlpha.to(0, beatLength, Easing::OutQuint);
+
+    // Each beat shoves the gradient along a little.
+    m_gradientBoost = 2.5f * adjust;
 }
 
 void LazerLogo::update(float dt) {
@@ -141,6 +159,11 @@ void LazerLogo::update(float dt) {
     constexpr float cutoff = 0.4f;
     float target = 1.f - std::max(0.f, audio.amplitude() - cutoff) * 0.04f;
     m_amplitudeScale = damp(m_amplitudeScale, target, 0.9, ms);
+
+    m_gradientBoost = damp(m_gradientBoost, 0.f, 0.99, ms);
+    m_gradientPhase += dt * (LOGO_GRADIENT_SPEED + m_gradientBoost);
+    m_gradientAngle += dt * LOGO_GRADIENT_TURN_SPEED;
+    m_disc->setGradient(withAlpha(m_palette.gradientB), m_gradientAngle, m_gradientPhase);
 
     for (auto t : {&m_bounceScale, &m_hoverScale, &m_impactScale, &m_impactAlpha,
                    &m_beatScale, &m_rippleScale, &m_rippleAlpha}) {

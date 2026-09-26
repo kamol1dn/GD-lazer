@@ -37,6 +37,18 @@ namespace sound {
     inline constexpr char const* WAVE_POP_OUT = "ui-overlay-big-pop-out";
 }
 
+// Intro / outro audio, from osu-resources: the triangles theme's opening
+// (with osu!'s voice taken out of the first second) and the "see you next
+// time" voice line.
+namespace cue {
+    inline constexpr char const* INTRO = "intro-triangles";
+    inline constexpr char const* SEEYA = "intro-seeya";
+}
+
+// Plays a cue at full volume (GD's SFX volume still applies, the UI sound
+// setting doesn't).
+void playCue(char const* name);
+
 // Plays `name` at `frequency` (speed and pitch, like osu!'s channel Frequency),
 // randomised by +-pitchVariation. Repeats of the same sound within 20 ms are
 // dropped (OsuGameBase.SAMPLE_DEBOUNCE_TIME).

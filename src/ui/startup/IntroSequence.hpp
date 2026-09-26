@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../core/Easing.hpp"
-#include "../core/RoundedBox.hpp"
+#include "../core/PlayerPalette.hpp"
 
 #include <Geode/Geode.hpp>
 #include <functional>
@@ -15,11 +15,13 @@ namespace lazer {
 // spike, orb and trigger punching in (osu!'s ruleset icons), then the logo
 // drawing itself in and a flash as the menu appears.
 //
-// osu!'s own theme song is cut to this timeline. Ours is a random level song,
-// so it does what osu! does for a user beatmap: the song starts 600 ms in at
-// silence and swells in (InCubic over 2.6 s), arriving at full volume as the
-// menu is revealed. The reveal itself waits for the song's next beat (within
-// a short window), so the flash lands on the music.
+// It plays the opening of osu!'s triangles theme, which this timeline is cut
+// to, with osu!'s "welcome to osu!" voice taken out of the first second. The
+// menu song starts on the reveal and fades in as the theme fades out.
+//
+// The logo is drawn as line art in the player's colours (osu!'s LogoAnimation
+// strokes): a thick coloured pass with a thin glow-coloured highlight racing
+// along behind it, ring first, then the cube.
 //
 // Covers the whole menu while it runs; `onReveal` is called at the flash.
 class IntroSequence : public cocos2d::CCLayer {
@@ -46,6 +48,10 @@ protected:
     void updateTriangles(float ms);
     void layoutRulesets();
     void drawLogo(float progress);
+    // Draws `path` (a polyline) from its start up to `progress`, coloured
+    // from `from` to `to` along its length.
+    void drawStroke(std::vector<cocos2d::CCPoint> const& path, float progress, float width,
+                    cocos2d::ccColor3B from, cocos2d::ccColor3B to);
     void reveal();
     void setMusicVolume(float volume);
 
@@ -55,9 +61,9 @@ protected:
     float m_timeMs = 0;
     float m_lastMs = -1;
     bool m_started = false;
-    bool m_trackStarted = false;
     bool m_revealed = false;
-    int m_beatAtStart = 0;
+    float m_revealMs = 0;
+    PlayerPalette m_palette;
 
     cocos2d::CCNode* m_content = nullptr;
 
@@ -79,9 +85,8 @@ protected:
 
     cocos2d::CCNode* m_logoContainer = nullptr;
     cocos2d::CCNode* m_logo = nullptr;
-    RoundedBox* m_logoDisc = nullptr;
-    cocos2d::CCLabelBMFont* m_logoText = nullptr;
-    cocos2d::CCDrawNode* m_logoRing = nullptr;
+    cocos2d::CCDrawNode* m_logoDraw = nullptr;
+    std::vector<cocos2d::CCPoint> m_ringPath, m_cubePath, m_innerPath;
     float m_logoBaseRadius = 0;
     Tweened<float> m_logoScale {1.2f};
     Tweened<float> m_logoContainerScale {1.2f};

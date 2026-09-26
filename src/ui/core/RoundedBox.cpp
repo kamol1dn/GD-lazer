@@ -33,6 +33,8 @@ uniform vec4 u_shadowColor;
 uniform float u_useTex;
 uniform vec4 u_uv;      // xy = uv of the box's top-left, zw = uv size covered by the box
 uniform float u_shift;  // texture shift, in box widths
+uniform vec4 u_fill2;
+uniform vec3 u_grad;    // x = on, y = angle (radians), z = phase
 uniform sampler2D CC_Texture0;
 
 float sdRoundBox(vec2 p, vec2 halfSize, vec4 radii) {
@@ -51,6 +53,15 @@ void main() {
     float inner = clamp(0.5 - (d + u_border) * u_pxPerUnit, 0.0, 1.0);
 
     vec4 fillColor = u_fill;
+    if (u_grad.x > 0.5) {
+        // Two soft waves drifting across each other: a gradient that never sits still.
+        vec2 local = v_pos / u_size - 0.5;
+        vec2 dir = vec2(cos(u_grad.y), sin(u_grad.y));
+        vec2 perp = vec2(-dir.y, dir.x);
+        float f = 0.5 + 0.5 * sin(dot(local, dir) * 4.2 + u_grad.z);
+        f = mix(f, 0.5 + 0.5 * sin(dot(local, perp) * 3.1 - u_grad.z * 0.7), 0.3);
+        fillColor = mix(u_fill, u_fill2, smoothstep(0.0, 1.0, f));
+    }
     if (u_useTex > 0.5) {
         vec2 local = v_pos / u_size;
         local.x -= u_shift;
@@ -76,7 +87,7 @@ void main() {
 
     struct Uniforms {
         GLuint program = 0;
-        GLint size, radius, pxPerUnit, fill, border, borderColor, shadow, shadowColor, useTex, uv, shift;
+        GLint size, radius, pxPerUnit, fill, border, borderColor, shadow, shadowColor, useTex, uv, shift, fill2, grad;
     } g_uniforms;
 
     // Looked up lazily so a re-linked program (e.g. after a GL context reset) is picked up.
@@ -95,6 +106,8 @@ void main() {
             glGetUniformLocation(id, "u_useTex"),
             glGetUniformLocation(id, "u_uv"),
             glGetUniformLocation(id, "u_shift"),
+            glGetUniformLocation(id, "u_fill2"),
+            glGetUniformLocation(id, "u_grad"),
         };
     }
 
@@ -184,6 +197,9 @@ void RoundedBox::draw() {
     uniformColor(g_uniforms.borderColor, m_borderColor, alpha, tint);
     glUniform1f(g_uniforms.shadow, m_shadowSize);
     uniformColor(g_uniforms.shadowColor, m_shadowColor, alpha, {255, 255, 255});
+
+    glUniform3f(g_uniforms.grad, m_gradient ? 1.f : 0.f, m_gradientAngle, m_gradientPhase);
+    if (m_gradient) uniformColor(g_uniforms.fill2, m_fill2, alpha, tint);
 
     glUniform1f(g_uniforms.useTex, m_texture ? 1.f : 0.f);
     if (m_texture) {

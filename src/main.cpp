@@ -4,6 +4,7 @@
 #include <Geode/modify/MenuLayer.hpp>
 
 #include "audio/MusicPlayer.hpp"
+#include "audio/Sfx.hpp"
 #include "integrations/LevelThumbnails.hpp"
 #include "integrations/ModIntegrations.hpp"
 #include "settings/Account.hpp"
@@ -43,20 +44,56 @@ namespace {
     FLAlertLayer* g_quitAlert = nullptr;
     bool g_exiting = false;
 
-    constexpr float OUTRO_MS = 1200;
+    constexpr float OUTRO_MS = 3000; // IntroScreen.exit_delay
 
-    // The outro (osu!'s IntroScreen.OnResuming without the voice): the music
-    // fades out while the screen goes to black, then `done` quits.
+    // The outro (osu!'s IntroScreen.OnResuming): the logo turns away in the
+    // middle while osu!'s "see you next time" plays and the words spread out
+    // under it, the music ducks and fades, and the screen goes to black. Then `done` quits.
     class Outro : public CCLayerColor {
     public:
-        static Outro* create(std::function<void()> done) {
+        static Outro* create(float logoRadius, std::function<void()> done) {
             auto ret = new Outro();
             ret->m_done = std::move(done);
             ret->initWithColor({0, 0, 0, 0});
             ret->autorelease();
             ret->setTouchEnabled(true);
             ret->scheduleUpdate();
+
+            auto win = CCDirector::get()->getWinSize();
+            float k = win.height / 768.f;
+            ret->m_k = k;
+            ret->m_text = CCNode::create();
+            ret->m_text->setPosition({win.width / 2, win.height / 2 - logoRadius - 60 * k});
+            ret->addChild(ret->m_text);
+            for (char c : std::string("see you next time")) {
+                auto label = lazer::makeText(std::string(1, c), lazer::Weight::Regular, 30 * k);
+                label->setOpacity(0);
+                ret->m_text->addChild(label);
+                ret->m_chars.push_back(label);
+            }
+            ret->layoutText(0);
+
+            lazer::sfx::playCue(lazer::sfx::cue::SEEYA);
             return ret;
+        }
+
+        void layoutText(float t) {
+            // Spreads out over the whole outro, like the intro's welcome text.
+            float spacing = (4 + 14 * static_cast<float>(lazer::ease(lazer::Easing::OutQuint, t))) * m_k;
+            float total = 0;
+            std::vector<float> widths;
+            for (auto label : m_chars) {
+                float w = label->getScaledContentSize().width;
+                if (std::string_view(label->getString()) == " ") w = std::max(w, 30 * m_k * 0.25f);
+                widths.push_back(w);
+                total += w;
+            }
+            total += spacing * (m_chars.size() - 1);
+            float x = -total / 2;
+            for (size_t i = 0; i < m_chars.size(); i++) {
+                m_chars[i]->setPosition({x + widths[i] / 2, 0});
+                x += widths[i] + spacing;
+            }
         }
 
         void registerWithTouchDispatcher() override {
@@ -67,10 +104,22 @@ namespace {
         void update(float dt) override {
             m_ms += dt * 1000.f;
             float t = std::min(1.f, m_ms / OUTRO_MS);
-            this->setOpacity(static_cast<GLubyte>(lazer::ease(lazer::Easing::InSine, t) * 255));
+            // osu! fades the whole game out linearly over the outro.
+            this->setOpacity(static_cast<GLubyte>(t * 255));
             if (auto channel = FMODAudioEngine::get()->getActiveMusicChannel(0)) {
-                channel->setVolume(1.f - static_cast<float>(lazer::ease(lazer::Easing::Out, t)));
+                // Duck to almost silent, then ramp out over the rest (osu!'s voice-on fade).
+                constexpr float INITIAL_FADE = 200;
+                float volume = m_ms < INITIAL_FADE
+                    ? 1.f - 0.97f * m_ms / INITIAL_FADE
+                    : 0.03f * (1.f - static_cast<float>(lazer::ease(lazer::Easing::In, (m_ms - INITIAL_FADE) / (OUTRO_MS - INITIAL_FADE))));
+                channel->setVolume(std::max(0.f, volume));
             }
+            // The words stay bright over the darkening screen, then go at the very end.
+            float in = std::clamp((m_ms - 150) / 500.f, 0.f, 1.f);
+            float out = std::clamp((OUTRO_MS - m_ms) / 500.f, 0.f, 1.f);
+            auto alpha = static_cast<GLubyte>(lazer::ease(lazer::Easing::OutQuad, std::min(in, out)) * 255);
+            for (auto label : m_chars) label->setOpacity(alpha);
+            layoutText(t);
             if (t >= 1.f && m_done) {
                 auto done = std::move(m_done);
                 m_done = nullptr;
@@ -81,6 +130,9 @@ namespace {
     private:
         std::function<void()> m_done;
         float m_ms = 0;
+        float m_k = 1;
+        CCNode* m_text = nullptr;
+        std::vector<CCLabelBMFont*> m_chars;
     };
 
     // Vanilla menus whose buttons move into the toolbar. Mods often add buttons here too.
@@ -373,7 +425,8 @@ class $modify(LazerMenuLayer, MenuLayer) {
 
         Ref<FLAlertLayer> alert = layer;
         Ref<MenuLayer> self = this;
-        this->addChild(Outro::create([self, alert] {
+        float logoRadius = f->buttons ? f->buttons->logoRadius() : 0.f;
+        this->addChild(Outro::create(logoRadius, [self, alert] {
             self->MenuLayer::FLAlert_Clicked(alert, true);
         }), 1000);
     }

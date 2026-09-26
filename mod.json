@@ -63,6 +63,8 @@
 			"resources/sounds/ui-overlay-pop-out.ogg",
 			"resources/sounds/ui-settings-pop-in.ogg",
 			"resources/sounds/ui-wave-pop-in.ogg",
+			"resources/sounds/intro-triangles.ogg",
+			"resources/sounds/intro-seeya.ogg",
 			"resources/levels/level-1.webp",
 			"resources/levels/level-2.webp",
 			"resources/levels/level-3.webp",
@@ -138,7 +140,7 @@
 		"intro": {
 			"type": "bool",
 			"name": "Intro and outro",
-			"description": "Play an animated intro when the game starts (the first song fades in under it) and a short outro when you quit.",
+			"description": "Play an animated intro when the game starts, and a \"see you next time\" outro when you quit.",
 			"default": true
 		},
 		"music-player": {
