@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.3
+
+- <cr>**IMPORTANT!!! Android players: this updater was broken.**</c> Updates since v0.3.0 changed the version number but kept running the old v0.3.0 code. If your logo is still pink with "GD" on it, updating here won't fix it. Reinstall once by hand:
+    1. Close Geometry Dash completely
+    2. Download `kamol1dn.lazer-ui.geode` from github.com/kamol1dn/GD-lazer/releases
+    3. In a file manager, open `Android/media/com.geode.launcher/game/geode/mods`, **delete** the old `kamol1dn.lazer-ui.geode`, then copy the downloaded one in (delete first, don't just overwrite)
+    4. Start the game: the logo shows your cube in your colours
+- After that, the updater works properly again. Windows was never affected
+
 ## v0.4.2
 
 - Fixed: on Android, updates from the in-game updater could keep running the old version (the version number changed but nothing else did). If you're on Android and don't have the new logo, reinstall this version once by hand; later updates apply properly
