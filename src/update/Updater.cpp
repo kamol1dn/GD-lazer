@@ -98,7 +98,15 @@ namespace {
                 } else {
                     std::error_code ec;
                     std::filesystem::rename(temp, target, ec);
-                    if (ec) error = fmt::format("couldn't replace {}: {}", target.filename().string(), ec.message());
+                    if (ec) {
+                        error = fmt::format("couldn't replace {}: {}", target.filename().string(), ec.message());
+                    } else {
+                        // Geode only re-extracts a .geode whose modified time differs from the one
+                        // it last unpacked, and on Android the swapped-in file can keep the old
+                        // time: the new binary never loaded. Drop Geode's record so it unpacks again.
+                        std::filesystem::last_write_time(target, std::filesystem::file_time_type::clock::now(), ec);
+                        std::filesystem::remove(dirs::getModRuntimeDir() / Mod::get()->getID() / "modified-at", ec);
+                    }
                 }
                 std::error_code ec;
                 std::filesystem::remove(temp, ec);
