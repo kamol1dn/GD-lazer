@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.0
+
+- Play menu: separate song selects for classic and platformer levels (replacing "main levels" and "the tower")
+- Platformer song select includes the Tower's levels and shows moons and best times
+- Quests page in the Lazer style: quest cards with progress bars, diamond rewards and claiming, opened from the toolbar
+- Updates itself: checks GitHub on start and offers to install new versions (Lazer settings > Updates)
+
 ## v0.2.0
 
 - Android support (arm64 and armv7); releases ship one .geode for Windows and Android
