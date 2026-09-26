@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.0
+
+- Tilt parallax on phones: tilt the phone and the menu background moves with it, like the mouse does on PC (the gravity sensor or accelerometer; can be turned off)
+- The menu buttons move with the parallax too, a little less than the background
+- Settings > Lazer UI > Parallax: background and menu parallax amounts, and the tilt toggle on phones
+- Music carries over between the menu and song select: entering song select keeps the menu's song playing and selects its level; going back, the menu keeps playing what song select was on
+
 ## v0.4.3
 
 - <cr>**IMPORTANT!!! Android players: this updater was broken.**</c> Updates since v0.3.0 changed the version number but kept running the old v0.3.0 code. If your logo is still pink with "GD" on it, updating here won't fix it. Reinstall once by hand:
