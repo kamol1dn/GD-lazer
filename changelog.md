@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- RobTop's levels (main levels and the Tower) have screenshots in song select, as panel thumbnails and the background
+
 ## v0.3.1
 
 - Quests page fits small screens (phones with a big UI scale)

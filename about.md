@@ -31,4 +31,5 @@ All optional:
 
 - UI sounds from [osu-resources](https://github.com/ppy/osu-resources) by ppy Pty Ltd, licensed under [CC-BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Converted from WAV to Ogg Vorbis.
 - Font: Outfit (SIL Open Font License). Icons: Font Awesome Free (solid).
+- Screenshots of RobTop's levels from the Geometry Dash Wiki (geometry-dash.fandom.com).
 - Level thumbnails from the [Level Thumbnails](https://levelthumbs.prevter.me) community.

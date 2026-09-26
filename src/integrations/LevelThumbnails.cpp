@@ -43,10 +43,12 @@ namespace {
         for (auto& cb : node.mapped()) cb(texture);
     }
 
-    void decode(int id, std::filesystem::path const& path) {
+    // `id` keys the cache: level IDs for online levels, negated for RobTop's
+    // (their IDs overlap with online ones). Bundled images are never deleted.
+    void decode(int id, std::filesystem::path const& path, bool bundled = false) {
         auto sprite = LazySprite::create({1, 1}, false);
         state().decoding[id] = sprite;
-        sprite->setLoadCallback([id, path](Result<> res) {
+        sprite->setLoadCallback([id, path, bundled](Result<> res) {
             auto& s = state();
             Ref<LazySprite> sprite = s.decoding[id];
             s.decoding.erase(id);
@@ -54,9 +56,9 @@ namespace {
             if (!res) {
                 log::warn("Couldn't decode thumbnail for level {}: {}", id, res.unwrapErr());
                 std::error_code ec;
-                std::filesystem::remove(path, ec); // corrupt or unsupported: fetch again next time
+                if (!bundled) std::filesystem::remove(path, ec); // corrupt or unsupported: fetch again next time
             }
-            finish(id, texture, false);
+            finish(id, texture, bundled && !texture);
             // Don't destroy the sprite from inside its own callback.
             Loader::get()->queueInMainThread([sprite] {});
         });
@@ -100,6 +102,25 @@ void fetch(int levelID, Callback callback) {
             else finish(levelID, nullptr, missing);
         });
     }).detach();
+}
+
+void fetchOfficial(int levelID, Callback callback) {
+    auto& s = state();
+    int key = -levelID;
+    if (levelID <= 0 || s.missing.contains(key)) return callback(nullptr);
+    if (auto it = s.textures.find(key); it != s.textures.end()) return callback(it->second);
+
+    auto& waiting = s.waiting[key];
+    waiting.push_back(std::move(callback));
+    if (waiting.size() > 1) return;
+
+    auto path = Mod::get()->getResourcesDir() / fmt::format("level-{}.webp", levelID);
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec)) {
+        finish(key, nullptr, true);
+        return;
+    }
+    decode(key, path, true);
 }
 
 void fetchFirst(std::vector<int> levelIDs, std::function<void(CCTexture2D*, int)> callback) {

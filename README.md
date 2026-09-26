@@ -134,3 +134,4 @@ tools/gen_icons.py    icon font generator
 - Motion and layout adapted from [osu!](https://github.com/ppy/osu) and [osu-framework](https://github.com/ppy/osu-framework) (MIT).
 - Font: [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL Open Font License).
 - Icons: [Font Awesome Free](https://fontawesome.com/) (solid; icons CC BY 4.0, font SIL OFL).
+- Screenshots of RobTop's levels (song select) from the [Geometry Dash Wiki](https://geometry-dash.fandom.com/) level pages, resized to 640×360. The levels themselves are RobTop Games'.

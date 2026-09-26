@@ -139,6 +139,13 @@ namespace {
         return face;
     }
 
+    // RobTop's levels have bundled screenshots (their IDs mean other levels
+    // online); saved levels come from the Level Thumbnails server.
+    void levelThumbnail(levels::Entry const& e, std::function<void(CCTexture2D*)> callback) {
+        if (e.official) thumbnails::fetchOfficial(e.id, std::move(callback));
+        else thumbnails::fetch(e.id, std::move(callback));
+    }
+
     bool containsWorld(CCNode* node, CCPoint world) {
         auto local = node->convertToNodeSpace(world);
         auto size = node->getContentSize();
@@ -472,18 +479,13 @@ void SongSelect::select(size_t visibleIndex, bool scroll) {
     updateWedge();
     m_previewDelay = PREVIEW_DELAY;
 
-    // Background: the level's thumbnail (RobTop's levels have none: IDs 1-22
-    // online are other people's levels).
+    // Background: the level's thumbnail.
     int request = ++m_backgroundRequest;
-    if (e.official) {
-        m_background->setImage(nullptr);
-    } else {
-        Ref<SongSelect> self = this;
-        thumbnails::fetch(e.id, [self, request](CCTexture2D* texture) {
-            if (self->m_backgroundRequest != request) return;
-            self->m_background->setImage(texture);
-        });
-    }
+    Ref<SongSelect> self = this;
+    levelThumbnail(e, [self, request](CCTexture2D* texture) {
+        if (self->m_backgroundRequest != request) return;
+        self->m_background->setImage(texture);
+    });
 }
 
 void SongSelect::selectRandom() {
@@ -815,10 +817,10 @@ void SongSelect::updateCarousel(float dt) {
 
             // Thumbnail, once the panel has settled in view.
             p.visibleMs += ms;
-            if (!e.official && !p.thumbRequested && p.visibleMs > THUMB_DELAY) {
+            if (!p.thumbRequested && p.visibleMs > THUMB_DELAY) {
                 p.thumbRequested = true;
                 Ref<RoundedBox> thumb = p.thumb;
-                thumbnails::fetch(e.id, [thumb](CCTexture2D* texture) {
+                levelThumbnail(e, [thumb](CCTexture2D* texture) {
                     if (!texture || !thumb->getParent()) return;
                     thumb->setTexture(texture);
                     thumb->setVisible(true);
