@@ -2,6 +2,7 @@
 
 ## v0.5.0
 
+- <cr>**IMPORTANT (Android): if nothing below shows up after updating, update by hand once.**</c> Older versions of the updater change the version number but keep running the old code. Close Geometry Dash, download `kamol1dn.lazer-ui.geode` from github.com/kamol1dn/GD-lazer/releases, **delete** the old one in `Android/media/com.geode.launcher/game/geode/mods` and copy the new one in (don't just overwrite). After that, updates apply properly
 - Tilt parallax on phones: tilt the phone and the menu background moves with it, like the mouse does on PC (the gravity sensor or accelerometer; can be turned off)
 - The menu buttons move with the parallax too, a little less than the background
 - Settings > Lazer UI > Parallax: background and menu parallax amounts, and the tilt toggle on phones
