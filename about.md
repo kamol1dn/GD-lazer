@@ -10,7 +10,7 @@ This is an **early alpha for testing**. It is **prone to crashes** and bugs, and
 
 - **Main menu:** a pulsing logo with an audio visualiser, and a button bar with **play**, **create** and **browse** submenus in place of GD's creator hub. A toolbar holds every other menu button (including ones added by other mods).
 - **Music player:** the menu plays the songs of your downloaded levels, with that level's thumbnail as a blurred background. Shuffle, skip, seek, and block songs you don't want.
-- **Song select:** play → main levels puts RobTop's levels and your saved levels in one searchable list, with details, song previews and thumbnails.
+- **Song select:** play → classic or platformer puts RobTop's levels (the Tower's, for platformers) and your saved levels in one searchable list, with details, song previews and thumbnails.
 - **Overlays** for settings (searchable, including account actions), daily chests, achievements, statistics and player profiles. GD's popups are restyled to match.
 - **Intro and outro:** a black loading screen, an animated intro as the game starts, and an outro when you quit.
 - **Sounds** on every button, with their own volume slider.

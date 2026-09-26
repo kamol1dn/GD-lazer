@@ -37,7 +37,7 @@ namespace {
     constexpr ccColor4B PURPLE {102, 68, 204, 255};
     constexpr ccColor4B TAB {60, 56, 76, 255};
 
-    // Kept between visits (and across a round trip into gameplay).
+    // Kept between visits (and across a round trip into gameplay), per kind.
     struct Remembered {
         int group = 0;
         levels::Sort sort = levels::Sort::Default;
@@ -45,10 +45,22 @@ namespace {
         int selectedId = -1;
         bool selectedOfficial = false;
     };
+    levels::Kind g_lastKind = levels::Kind::Classic;
     Remembered& remembered() {
-        static Remembered r;
-        return r;
+        static Remembered r[2];
+        return r[static_cast<int>(g_lastKind)];
     }
+
+    // Platformer times, GD style: 1:23.456 (or 23.456 under a minute).
+    std::string formatTime(int ms) {
+        int minutes = ms / 60000;
+        int seconds = ms / 1000 % 60;
+        if (minutes > 0) return fmt::format("{}:{:02}.{:03}", minutes, seconds, ms % 1000);
+        return fmt::format("{}.{:03}", seconds, ms % 1000);
+    }
+
+    // Stars for classic levels, moons for platformers.
+    char const* rewardIcon(levels::Entry const& e) { return e.platformer ? icon::MOON : icon::STAR; }
 
     float skewDegrees() { return CC_RADIANS_TO_DEGREES(std::atan(SHEAR)); }
 
@@ -139,15 +151,19 @@ bool& SongSelect::returnsHere() {
     return value;
 }
 
-CCScene* SongSelect::scene() {
+CCScene* SongSelect::scene(levels::Kind kind) {
     auto scene = CCScene::create();
-    scene->addChild(SongSelect::create());
+    scene->addChild(SongSelect::create(kind));
     return scene;
 }
 
-SongSelect* SongSelect::create() {
+CCScene* SongSelect::scene() {
+    return scene(g_lastKind);
+}
+
+SongSelect* SongSelect::create(levels::Kind kind) {
     auto ret = new SongSelect();
-    if (ret->init()) {
+    if (ret->init(kind)) {
         ret->autorelease();
         return ret;
     }
@@ -155,8 +171,10 @@ SongSelect* SongSelect::create() {
     return nullptr;
 }
 
-bool SongSelect::init() {
+bool SongSelect::init(levels::Kind kind) {
     if (!CCLayer::init()) return false;
+    m_kind = kind;
+    g_lastKind = kind;
     m_win = CCDirector::get()->getWinSize();
     m_k = unitScale();
     float k = m_k;
@@ -201,8 +219,8 @@ bool SongSelect::init() {
     m_sort = r.sort;
     m_query = r.query;
     if (m_search && !m_query.empty()) m_search->setString(m_query);
-    m_entries = levels::all();
-    log::info("Song select: {} levels", m_entries.size());
+    m_entries = levels::all(m_kind);
+    log::info("Song select: {} {} levels", m_entries.size(), m_kind == levels::Kind::Platformer ? "platformer" : "classic");
     applyFilter();
     m_scroll = m_scrollTarget;
 
@@ -409,7 +427,8 @@ void SongSelect::applyFilter() {
     static char const* SORT_NAMES[] = {"sort: default", "sort: title", "sort: difficulty", "sort: progress"};
     if (m_sortLabel) m_sortLabel->setString(SORT_NAMES[static_cast<int>(m_sort)]);
     if (m_countLabel) {
-        m_countLabel->setString(fmt::format("{} level{}", m_visible.size(), m_visible.size() == 1 ? "" : "s").c_str());
+        m_countLabel->setString(fmt::format("{} {} level{}", m_visible.size(),
+            m_kind == levels::Kind::Platformer ? "platformer" : "classic", m_visible.size() == 1 ? "" : "s").c_str());
     }
 
     if (m_visible.empty()) {
@@ -575,8 +594,8 @@ void SongSelect::updateWedge() {
     face->setPosition({x0 + 17 * k, statsY});
     m_wedge->addChild(face, 1);
     std::vector<std::pair<char const*, std::string>> stats;
-    if (e.stars > 0) stats.push_back({icon::STAR, std::to_string(e.stars)});
-    stats.push_back({icon::CLOCK, levels::lengthName(e.length)});
+    if (e.stars > 0) stats.push_back({rewardIcon(e), std::to_string(e.stars)});
+    if (!e.platformer) stats.push_back({icon::CLOCK, levels::lengthName(e.length)});
     if (e.coins > 0) stats.push_back({icon::COINS, fmt::format("{}/{}", e.coinsCollected, e.coins)});
     if (!e.official) stats.push_back({icon::ID_CARD, std::to_string(e.id)});
     auto statsRow = infoRow(stats, 17 * k, theme::CONTENT1);
@@ -627,8 +646,19 @@ void SongSelect::updateWedge() {
     };
 
     section("progress");
-    bar("normal", e.normalPercent, accent);
-    bar("practice", e.practicePercent, {100, 200, 255});
+    if (e.platformer) {
+        // Platformers have no percentage: beaten or not, and the best time.
+        auto best = infoRow({
+            {e.normalPercent >= 100 ? icon::CHECK : icon::XMARK, e.normalPercent >= 100 ? "completed" : "not completed"},
+            {icon::CLOCK, e.bestTime > 0 ? "best " + formatTime(e.bestTime) : "no best time"},
+        }, 15 * k, theme::CONTENT1);
+        best->setPosition({x0, y});
+        m_wedge->addChild(best, 1);
+        y -= 26 * k;
+    } else {
+        bar("normal", e.normalPercent, accent);
+        bar("practice", e.practicePercent, {100, 200, 255});
+    }
 
     auto level = e.level.data();
     y -= 6 * k;
@@ -700,7 +730,7 @@ SongSelect::Panel& SongSelect::makePanel(size_t visibleIndex) {
     face->setPosition({STRIP_WIDTH * k / 2, ph * 0.6f});
     root->addChild(face, 4);
     if (e.stars > 0) {
-        auto stars = infoRow({{icon::STAR, std::to_string(e.stars)}}, 12 * k, {255, 255, 255});
+        auto stars = infoRow({{rewardIcon(e), std::to_string(e.stars)}}, 12 * k, {255, 255, 255});
         stars->setPosition({(STRIP_WIDTH * k - stars->getContentSize().width + 10 * k) / 2, ph * 0.17f});
         root->addChild(stars, 4);
     }
@@ -721,9 +751,10 @@ SongSelect::Panel& SongSelect::makePanel(size_t visibleIndex) {
     root->addChild(creator, 4);
 
     std::vector<std::pair<char const*, std::string>> info;
-    info.push_back({icon::CLOCK, levels::lengthName(e.length)});
+    if (!e.platformer) info.push_back({icon::CLOCK, levels::lengthName(e.length)});
     if (e.coins > 0) info.push_back({icon::COINS, fmt::format("{}/{}", e.coinsCollected, e.coins)});
-    info.push_back({e.normalPercent >= 100 ? icon::CHECK : nullptr, fmt::format("{}%", e.normalPercent)});
+    if (!e.platformer) info.push_back({e.normalPercent >= 100 ? icon::CHECK : nullptr, fmt::format("{}%", e.normalPercent)});
+    else if (e.normalPercent >= 100) info.push_back({icon::CHECK, e.bestTime > 0 ? formatTime(e.bestTime) : "completed"});
     auto row = infoRow(info, 12 * k, theme::LIGHT1);
     row->setPosition({x, ph * 0.2f});
     root->addChild(row, 4);

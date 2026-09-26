@@ -42,7 +42,7 @@ It replaces GD's menus, not its gameplay. GD's own screens and handlers still ru
 **Main menu**
 - Pulsing logo with an audio visualiser, beat-synced side flashes and drifting triangles
 - Button bar with **play**, **create** and **browse** submenus, replacing GD's confusing creator hub:
-  - play: main levels, daily, gauntlets, map packs, the tower
+  - play: classic, platformer, daily, gauntlets, map packs
   - create: my levels, new level, my lists
   - browse: search, featured, lists, hall of fame
 - Toolbar with every vanilla and mod menu button, plus leaderboards, quests, paths, weekly, event, vault and treasure room
@@ -53,14 +53,18 @@ It replaces GD's menus, not its gameplay. GD's own screens and handlers still ru
 - Now-playing card with previous / play / next / shuffle, a seek bar and a song ticker
 - Block songs you never want to hear (sound-effect packs and the like); tracks under 30 s are skipped
 
-**Song select (play → main levels)**
+**Song select (play → classic / platformer)**
 - RobTop's levels and your saved levels in one curved carousel, with search, groups and sorting
+- Classic and platformer levels are separate lists; platformers include the Tower's levels and show moons and best times
 - The selected level's details, a preview of its song, and its thumbnail as the background
 - Playing a level, or backing out of GD's level page, returns to song select
 
+**Updates**
+- Not on the Geode index, so the mod updates itself: on start it checks the version on GitHub's main branch and offers to download and install the new release (turn off in Lazer settings > Updates)
+
 **Overlays**
 - Searchable settings covering GD's options and the mod's own, including account actions (save, load, refresh login, unlink)
-- Daily chests, achievements (filters, search, categories), statistics
+- Daily chests, quests, achievements (filters, search, categories), statistics
 - Account card and a redesigned profile page for any player
 - GD's popups restyled to match
 
@@ -86,8 +90,8 @@ None of these are required. The matching extras appear when a mod is installed.
 ## How it works
 
 - **`early-load`** is set so the mod can restyle GD's loading screen from its first frame. Nothing else runs early. At that point the mod's own resources aren't loaded yet, so the loading screen is drawn entirely in code.
-- **GD layers run hidden.** Several overlays drive GD's own layers (RewardsPage, ProfilePage, AccountLayer, CreatorLayer...) kept hidden and non-interactive, and call their handlers. GD's logic, networking and saving are never reimplemented.
-- **Networking:** only level thumbnails, fetched from the Level Thumbnails community server (`levelthumbs.prevter.me`) and cached on disk. No accounts, analytics or other requests.
+- **GD layers run hidden.** Several overlays drive GD's own layers (RewardsPage, ChallengesPage, ProfilePage, AccountLayer, CreatorLayer...) kept hidden and non-interactive, and call their handlers. GD's logic, networking and saving are never reimplemented.
+- **Networking:** level thumbnails, fetched from the Level Thumbnails community server (`levelthumbs.prevter.me`) and cached on disk, and the update check: `mod.json` and `changelog.md` from this repo's `main` branch, plus the GitHub release when you choose to update. No accounts, analytics or other requests.
 - **Settings:** everything can be switched off. `enabled` turns the whole mod off; the intro/outro, music player, popup restyle, profile restyle, background dim, blur and triangles each have their own toggle.
 
 ## Building
@@ -101,6 +105,8 @@ cmake --build build --config RelWithDebInfo
 ```
 
 The build installs the `.geode` into your GD mods folder.
+
+**Releasing:** bump `version` in `mod.json`, rename the changelog's `## Unreleased` heading to that version (e.g. `## v0.3.0`), and push to `main`. The changelog section becomes the release notes, both on GitHub and in the in-game update prompt. CI builds it and publishes a GitHub release tagged with that version if none exists yet; installed copies see the new version on main and download that release.
 
 Icon glyphs are baked into a bitmap font at build time. To add one, list it in `tools/gen_icons.py` and run it: the script updates both `src/ui/core/Text.hpp` and the charset in `mod.json`.
 
@@ -118,6 +124,7 @@ src/
   ui/overlays/        full-screen overlays and popup restyling
   ui/select/          song select
   ui/startup/         loading screen and intro
+  update/             self-updater (GitHub releases)
 tools/gen_icons.py    icon font generator
 ```
 

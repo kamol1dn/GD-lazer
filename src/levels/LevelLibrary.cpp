@@ -11,6 +11,9 @@ namespace {
     // RobTop's main levels (Stereo Madness .. Dash).
     constexpr int FIRST_MAIN = 1;
     constexpr int LAST_MAIN = 22;
+    // The Tower's floor 1 (The Tower .. The Secret Hollow).
+    constexpr int FIRST_TOWER = 5001;
+    constexpr int LAST_TOWER = 5004;
 
     std::string lower(std::string s) {
         for (auto& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -78,6 +81,8 @@ namespace {
         e.normalPercent = level->m_normalPercent.value();
         e.practicePercent = level->m_practicePercent;
         e.length = level->m_levelLength;
+        e.platformer = level->isPlatformer();
+        if (e.platformer) e.bestTime = level->m_bestTime;
         fillSong(e, level);
         fillCoins(e, level);
         e.search = lower(e.name + " " + e.creator + " " + e.songTitle + " " + e.songArtist);
@@ -85,19 +90,25 @@ namespace {
     }
 }
 
-std::vector<Entry> all() {
+std::vector<Entry> all(Kind kind) {
     std::vector<Entry> entries;
     auto glm = GameLevelManager::sharedState();
+    bool platformer = kind == Kind::Platformer;
 
-    for (int id = FIRST_MAIN; id <= LAST_MAIN; id++) {
+    int first = platformer ? FIRST_TOWER : FIRST_MAIN;
+    int last = platformer ? LAST_TOWER : LAST_MAIN;
+    for (int id = first; id <= last; id++) {
         auto level = glm->getMainLevel(id, false);
         if (!level || std::string(level->m_levelName).empty()) continue;
         entries.push_back(make(level, true));
+        // Tower doors open one at a time: stop after the first level not yet beaten.
+        if (platformer && level->m_normalPercent.value() < 100) break;
     }
 
     if (auto saved = glm->getSavedLevels(false, 0)) {
         for (auto level : CCArrayExt<GJGameLevel*>(saved)) {
             if (!level || level->m_levelID.value() <= 0) continue;
+            if (level->isPlatformer() != platformer) continue;
             entries.push_back(make(level, false));
         }
     }

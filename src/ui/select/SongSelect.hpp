@@ -15,7 +15,8 @@ namespace lazer {
 
 class MenuBackground;
 
-// Play -> main levels: every level you can play in one list, after osu!'s song select
+// Play -> classic / platformer: every level of that kind you can play in one list,
+// RobTop's and your saved ones, after osu!'s song select
 // (osu.Game/Screens/Select/SongSelect.cs):
 //   left:   the selected level's title wedge and details
 //   right:  a curved carousel of level panels, with search and filters on top
@@ -25,8 +26,10 @@ class MenuBackground;
 // (GD's CCLayer is already a CCMouseDelegate.)
 class SongSelect : public cocos2d::CCLayer {
 public:
+    static cocos2d::CCScene* scene(levels::Kind kind);
+    // The kind last opened (where gameplay and level pages return to).
     static cocos2d::CCScene* scene();
-    static SongSelect* create();
+    static SongSelect* create(levels::Kind kind);
 
     // Set while the player came from song select, so leaving gameplay or GD's
     // level page returns here instead of GD's own screens.
@@ -71,7 +74,7 @@ protected:
         bool selected = false; // lit tab
     };
 
-    bool init() override;
+    bool init(levels::Kind kind);
     void buildFilter();
     void buildFooter();
     Button& addButton(std::vector<Button>& list, cocos2d::CCNode* parent, char const* glyph, std::string const& label,
@@ -100,6 +103,7 @@ protected:
     float m_carouselTop = 0, m_carouselBottom = 0; // screen y
     float m_panelH = 0, m_spacing = 0;
 
+    levels::Kind m_kind = levels::Kind::Classic;
     std::vector<levels::Entry> m_entries;
     std::vector<size_t> m_visible; // filtered + sorted entry indices
     size_t m_selected = 0;         // index into m_visible

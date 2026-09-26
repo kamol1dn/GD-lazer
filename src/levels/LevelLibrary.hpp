@@ -25,11 +25,18 @@ struct Entry {
     int coinsCollected = 0;
     bool coinsVerified = false;
     int length = 0;            // 0 tiny .. 4 XL, 5 platformer
+    bool platformer = false;   // rated in moons instead of stars
+    int bestTime = 0;          // platformer best time, ms (0 = none)
     std::string search;        // lower-cased name, creator and song, for filtering
 };
 
-// RobTop's levels in order, then every saved online level.
-std::vector<Entry> all();
+// GD 2.2 has two kinds of level: classic (stars) and platformer (moons).
+enum class Kind { Classic, Platformer };
+
+// RobTop's levels of that kind in order, then every saved online level of that kind.
+// Classic: the main levels. Platformer: the Tower's levels (vanilla hides them
+// behind the last page of the main levels), each once the one before is beaten.
+std::vector<Entry> all(Kind kind);
 
 // Official levels first by number, saved ones newest-saved first (GD's order).
 enum class Sort { Default, Title, Difficulty, Progress };

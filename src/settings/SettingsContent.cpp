@@ -5,6 +5,7 @@
 #include "../ui/menu/MenuBackground.hpp"
 #include "../ui/overlays/SettingsOverlay.hpp"
 #include "../ui/overlays/SettingsRows.hpp"
+#include "../update/Updater.hpp"
 #include "Account.hpp"
 #include "GDOptions.hpp"
 
@@ -253,6 +254,21 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
     unblockRow->setTooltip("Songs you blocked in the music player (the ban button) can play again.");
     unblockRow->setShownIf([] { return MusicPlayer::get().blockedCount() > 0; });
     overlay->addRow(unblockRow);
+
+    overlay->addSubsection("Updates");
+    auto updatesRow = ToggleRow::create(
+        "Check for updates on start", w, k,
+        [mod] { return mod->getSettingValue<bool>("check-updates"); },
+        [mod] {
+            bool v = !mod->getSettingValue<bool>("check-updates");
+            mod->setSettingValue<bool>("check-updates", v);
+            return v;
+        }
+    );
+    updatesRow->setTooltip("Lazer UI isn't on the Geode index: it checks GitHub for new versions and offers to install them.");
+    overlay->addRow(updatesRow);
+    overlay->addRow(ButtonRow::create(fmt::format("Check for updates ({})", mod->getVersion().toVString()), w, k,
+                                      [] { updater::checkManually(); }));
 
     overlay->addSubsection("Mods");
     overlay->addRow(ButtonRow::create("All Lazer UI settings", w, k, [mod] { openSettingsPopup(mod); }));

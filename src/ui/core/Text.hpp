@@ -69,6 +69,8 @@ namespace icon {
     constexpr auto CIRCLE_PLAY = "\xEF\x85\x84";    // f144
     constexpr auto COMPASS = "\xEF\x85\x8E";        // f14e
     constexpr auto THUMBS_UP = "\xEF\x85\xA4";      // f164
+    constexpr auto MOON = "\xEF\x86\x86";           // f186
+    constexpr auto CUBE = "\xEF\x86\xB2";           // f1b2
     constexpr auto SLIDERS = "\xEF\x87\x9E";        // f1de
     constexpr auto BELL_SLASH = "\xEF\x87\xB6";     // f1f6
     constexpr auto USER_PLUS = "\xEF\x88\xB4";      // f234

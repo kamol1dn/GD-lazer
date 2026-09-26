@@ -18,7 +18,9 @@
 #include "ui/menu/SongTicker.hpp"
 #include "ui/menu/Toolbar.hpp"
 #include "ui/select/SongSelect.hpp"
+#include "update/Updater.hpp"
 #include "ui/overlays/AchievementsOverlay.hpp"
+#include "ui/overlays/QuestsOverlay.hpp"
 #include "ui/overlays/RewardsOverlay.hpp"
 #include "ui/overlays/SettingsOverlay.hpp"
 #include "ui/overlays/StatsOverlay.hpp"
@@ -192,6 +194,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
         lazer::MenuBackground* background = nullptr;
         lazer::SettingsOverlay* settings = nullptr;
         lazer::RewardsOverlay* rewards = nullptr;
+        lazer::QuestsOverlay* quests = nullptr;
         lazer::AchievementsOverlay* achievements = nullptr;
         lazer::StatsOverlay* stats = nullptr;
         lazer::NowPlayingOverlay* nowPlaying = nullptr;
@@ -208,6 +211,8 @@ class $modify(LazerMenuLayer, MenuLayer) {
         if (intro) lazer::MusicPlayer::get().holdForIntro();
 
         if (!MenuLayer::init()) return false;
+        // Not on the Geode index: look for updates on GitHub (even with the Lazer menu off).
+        lazer::updater::onMenu(this, intro ? 4.f : 1.f);
         g_newLevelFlow = false;
         // Back at the menu: gameplay no longer returns to song select.
         lazer::SongSelect::returnsHere() = false;
@@ -252,14 +257,16 @@ class $modify(LazerMenuLayer, MenuLayer) {
             {"exit", icon::CIRCLE_XMARK, {238, 51, 153}, [this] { this->onQuit(this); }, false},
 
             // play: everything you can play right away
-            // Song select: RobTop's levels and your saved ones in one list.
-            {"main levels", icon::RUNNING, {102, 68, 204}, leave(State::Play, [] {
-                showScene(lazer::SongSelect::scene());
+            // Song select, one per kind of level: RobTop's levels and your saved ones in one list.
+            {"classic", icon::CUBE, {102, 68, 204}, leave(State::Play, [] {
+                showScene(lazer::SongSelect::scene(lazer::levels::Kind::Classic));
+            }), true, lazer::sfx::sound::MENU_PLAY_SELECT, State::Play},
+            {"platformer", icon::RUNNING, {102, 68, 204}, leave(State::Play, [] {
+                showScene(lazer::SongSelect::scene(lazer::levels::Kind::Platformer));
             }), true, lazer::sfx::sound::MENU_PLAY_SELECT, State::Play},
             {"daily", icon::CALENDAR_DAY, PLAY_SUB, [] { creatorAction(&CreatorLayer::onDailyLevel); }, false, defaultSound, State::Play},
             {"gauntlets", icon::FIST, PLAY_SUB, creator(State::Play, &CreatorLayer::onGauntlets), true, defaultSound, State::Play},
             {"map packs", icon::BOXES, PLAY_SUB, creator(State::Play, &CreatorLayer::onMapPacks), true, defaultSound, State::Play},
-            {"the tower", icon::CHESS_ROOK, PLAY_SUB, creator(State::Play, &CreatorLayer::onAdventureMap), true, defaultSound, State::Play},
 
             // create: your own levels
             {"my levels", icon::FOLDER_OPEN, {238, 170, 0}, creator(State::Create, &CreatorLayer::onMyLevels), true, defaultSound, State::Create},
@@ -440,7 +447,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
             };
         };
         toolbar->addRight({lazer::makeIcon(icon::RANKING_STAR, 1), "leaderboards", hub(&CreatorLayer::onLeaderboards)});
-        toolbar->addRight({lazer::makeIcon(icon::LIST_CHECK, 1), "quests", hub(&CreatorLayer::onChallenge)});
+        toolbar->addRight({lazer::makeIcon(icon::LIST_CHECK, 1), "quests", [this] { this->toggleQuests(); }});
         toolbar->addRight({lazer::makeIcon(icon::ROUTE, 1), "paths", hub(&CreatorLayer::onPaths)});
         toolbar->addRight({lazer::makeIcon(icon::CALENDAR_WEEK, 1), "weekly demon", hub(&CreatorLayer::onWeeklyLevel)});
         toolbar->addRight({lazer::makeIcon(icon::BOLT, 1), "event level", hub(&CreatorLayer::onEventLevel)});
@@ -505,6 +512,21 @@ class $modify(LazerMenuLayer, MenuLayer) {
         }
     }
 
+    void toggleQuests() {
+        auto& quests = m_fields->quests;
+        if (!quests) {
+            quests = lazer::QuestsOverlay::create(m_fields->toolbar ? m_fields->toolbar->height() : 0);
+            quests->setID("quests"_spr);
+            this->addChild(quests, 16);
+        }
+        if (quests->isOpen()) {
+            quests->close();
+        } else {
+            closeOverlaysExcept(quests);
+            quests->open();
+        }
+    }
+
     void toggleAchievements() {
         auto& achievements = m_fields->achievements;
         if (!achievements) {
@@ -540,6 +562,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
         auto& f = m_fields;
         if (f->settings && f->settings != keep) f->settings->close();
         if (f->rewards && f->rewards != keep) f->rewards->close();
+        if (f->quests && f->quests != keep) f->quests->close();
         if (f->achievements && f->achievements != keep) f->achievements->close();
         if (f->stats && f->stats != keep) f->stats->close();
     }
@@ -583,6 +606,7 @@ class $modify(LazerMenuLayer, MenuLayer) {
         if (m_fields->account && m_fields->account->back()) return true;
         if (m_fields->settings && m_fields->settings->back()) return true;
         if (m_fields->rewards && m_fields->rewards->back()) return true;
+        if (m_fields->quests && m_fields->quests->back()) return true;
         if (m_fields->achievements && m_fields->achievements->back()) return true;
         if (m_fields->stats && m_fields->stats->back()) return true;
         if (m_fields->buttons && m_fields->buttons->back()) return true;
