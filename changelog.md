@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.3.1
+
+- Quests page fits small screens (phones with a big UI scale)
+- Update prompts use the Lazer popup style
+- Settings sidebar stays collapsed on touchscreens instead of covering the settings
+
 ## v0.3.0
 
 - Play menu: separate song selects for classic and platformer levels (replacing "main levels" and "the tower")
