@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.1
+
+- Starting a level plays osu!'s loader: song select fades away, the level's card scales in over its background, then the level starts (back cancels)
+
 ## v0.4.0
 
 - The logo takes your icon's colours, with your cube in place of the "GD" text
