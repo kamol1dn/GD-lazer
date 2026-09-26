@@ -41,6 +41,9 @@ if [[ -z "$device" ]]; then
 fi
 echo "Phone: $device"
 
+# Delete first: overwriting in place can leave Geode seeing the old modified
+# time, and then it keeps running the previously unpacked binary.
+"$ADB" -s "$device" shell rm -f "$MODS$(basename "$GEODE")"
 "$ADB" -s "$device" push "$GEODE" "$MODS"
 "$ADB" -s "$device" shell am force-stop "$PACKAGE"
 "$ADB" -s "$device" shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
