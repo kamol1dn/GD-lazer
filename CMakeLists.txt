@@ -22,3 +22,8 @@ endif()
 add_subdirectory($ENV{GEODE_SDK} ${CMAKE_CURRENT_BINARY_DIR}/geode)
 
 setup_geode_mod(${PROJECT_NAME})
+
+if (ANDROID)
+    # Tilt parallax reads the phone's sensors through the NDK (android/sensor.h).
+    target_link_libraries(${PROJECT_NAME} android)
+endif()

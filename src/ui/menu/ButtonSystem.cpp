@@ -39,6 +39,9 @@ bool ButtonSystem::init(std::vector<ButtonDef> buttons) {
     auto win = CCDirector::sharedDirector()->getWinSize();
     this->setContentSize(win);
     m_center = win / 2;
+    // Centred, so the parallax zoom scales around the middle of the screen.
+    this->setAnchorPoint({0.5f, 0.5f});
+    this->setPosition(m_center);
 
     float k = unitScale();
     m_buttonWidth = BUTTON_WIDTH * k;
@@ -266,6 +269,12 @@ void ButtonSystem::layoutButtons() {
 
 void ButtonSystem::update(float dt) {
     float ms = dt * 1000.f;
+    // MainMenu's buttonsContainer: less parallax than the background (osu!: half),
+    // so the menu floats between the background and the screen.
+    m_parallax.update(dt, this->getContentSize());
+    this->setPosition(m_center + m_parallax.offset());
+    this->setScale(m_parallax.scale());
+
     // Run due delayed actions. Take the list first: actions may schedule new ones.
     auto pending = std::move(m_pending);
     m_pending.clear();

@@ -1,5 +1,6 @@
 #include "MenuBackground.hpp"
 
+#include "../core/Tilt.hpp"
 #include "../core/Triangles.hpp"
 
 #include <Geode/utils/cocos.hpp>
@@ -16,10 +17,6 @@ namespace {
     // bilinear upscale adds to the blur.
     constexpr float DOWNSAMPLE = 4.f;
 
-    // ParallaxContainer: DEFAULT_PARALLAX_AMOUNT and its easing times.
-    constexpr float PARALLAX_AMOUNT = 0.02f;
-    constexpr float PARALLAX_DURATION = 100.f;
-    constexpr float PARALLAX_SCALE_DURATION = 1000.f;
     // BackgroundScreenDefault.displayNext: the old background fades out over the new one.
     constexpr float CROSSFADE_MS = 800.f;
 
@@ -220,8 +217,6 @@ bool MenuBackground::imageCoversScreen() const {
 }
 
 void MenuBackground::update(float dt) {
-    float ms = dt * 1000.f;
-
     // Image fades; drop images that have fully faded out.
     for (auto& img : m_imageStack) {
         img.alpha.update(dt);
@@ -233,36 +228,35 @@ void MenuBackground::update(float dt) {
         return gone;
     });
 
-    // ParallaxContainer.Update: offset towards the mouse, with a soft falloff.
+    // ParallaxContainer.Update: offset towards the mouse (or with the tilt).
     auto win = this->getContentSize();
     auto half = win / 2;
-    auto mouse = geode::cocos::getMousePos() - half;
-    // Its falloff is in osu! pixels (768 tall); convert from GD units.
-    float toOsu = 768.f / win.height;
-    auto soft = [toOsu](float v) {
-        float x = std::abs(v) * toOsu;
-        return std::copysign(1.f - std::pow(0.999f, x), v);
-    };
-    CCPoint target {soft(mouse.x) * half.width * PARALLAX_AMOUNT, soft(mouse.y) * half.height * PARALLAX_AMOUNT};
-    float t = static_cast<float>(ease(Easing::OutQuint, std::min(ms, PARALLAX_DURATION) / PARALLAX_DURATION));
-    m_parallax = m_parallax + (target - m_parallax) * t;
-    float ts = static_cast<float>(ease(Easing::OutQuint, std::min(ms, PARALLAX_SCALE_DURATION) / PARALLAX_SCALE_DURATION));
-    m_parallaxScale += (1.f + PARALLAX_AMOUNT - m_parallaxScale) * ts;
+    m_parallax.update(dt, win);
 
     if (m_blurred) {
-        m_blurred->setPosition(half + m_parallax);
+        m_blurred->setPosition(half + m_parallax.offset());
         auto size = m_blurred->getContentSize();
-        m_blurred->setScaleX(win.width / size.width * m_parallaxScale);
-        m_blurred->setScaleY(win.height / size.height * m_parallaxScale);
+        m_blurred->setScaleX(win.width / size.width * m_parallax.scale());
+        m_blurred->setScaleY(win.height / size.height * m_parallax.scale());
     } else {
         // GD's own scene isn't ours to move; the level image is.
-        m_images->setPosition(half + m_parallax);
-        m_images->setScale(m_parallaxScale);
+        m_images->setPosition(half + m_parallax.offset());
+        m_images->setScale(m_parallax.scale());
     }
 }
 
 void MenuBackground::setDim(float dim) {
     m_dim->setOpacity(static_cast<GLubyte>(std::clamp(dim, 0.f, 1.f) * 255));
+}
+
+void MenuBackground::onEnter() {
+    CCNode::onEnter();
+    tilt::acquire();
+}
+
+void MenuBackground::onExit() {
+    tilt::release();
+    CCNode::onExit();
 }
 
 void MenuBackground::visit() {

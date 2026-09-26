@@ -202,6 +202,41 @@
 			"name": "Background triangles",
 			"description": "Show slowly drifting triangles over the background.",
 			"default": true
+		},
+		"parallax-background": {
+			"type": "float",
+			"name": "Background parallax",
+			"description": "How far the menu background follows the mouse (on phones, the tilt), in percent of the screen.",
+			"default": {"win": 2, "mac": 2, "android": 4, "ios": 4},
+			"min": 0,
+			"max": 8,
+			"control": {
+				"slider": true,
+				"slider-step": 0.5,
+				"arrows": false,
+				"input": true
+			}
+		},
+		"parallax-menu": {
+			"type": "float",
+			"name": "Menu parallax",
+			"description": "How far the main menu's buttons follow the mouse (on phones, the tilt), in percent of the screen.",
+			"default": 1,
+			"min": 0,
+			"max": 8,
+			"control": {
+				"slider": true,
+				"slider-step": 0.5,
+				"arrows": false,
+				"input": true
+			}
+		},
+		"tilt-parallax": {
+			"type": "bool",
+			"name": "Tilt parallax",
+			"description": "Move the menu with the phone's tilt (gyroscope and accelerometer).",
+			"default": true,
+			"platforms": ["android", "ios"]
 		}
 	}
 }

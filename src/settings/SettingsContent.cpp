@@ -238,6 +238,34 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
     introRow->setTooltip("Animated intro when the game starts, and an outro when you quit.");
     overlay->addRow(introRow);
 
+    overlay->addSubsection("Parallax");
+    // Slider 0..1 covers 0%..8%, in steps of 0.5%. Applies live: the menu reads it every frame.
+    auto parallaxRow = [&](char const* name, char const* key, char const* tooltip) {
+        auto row = SliderRow::create(
+            name, w, k,
+            [mod, key] { return static_cast<float>(mod->getSettingValue<double>(key) / 8.0); },
+            [mod, key](float v) { mod->setSettingValue<double>(key, std::round(v * 16) / 2.0); },
+            [](float v) { return fmt::format("{}%", std::round(v * 16) / 2.0); }
+        );
+        row->setTooltip(tooltip);
+        overlay->addRow(row);
+    };
+    parallaxRow("Background parallax", "parallax-background", "How far the background moves with the mouse (on phones, the tilt).");
+    parallaxRow("Menu parallax", "parallax-menu", "How far the main menu's buttons move. Less than the background makes them float over it.");
+#ifdef GEODE_IS_MOBILE
+    auto tiltRow = ToggleRow::create(
+        "Tilt parallax", w, k,
+        [mod] { return mod->getSettingValue<bool>("tilt-parallax"); },
+        [mod] {
+            bool v = !mod->getSettingValue<bool>("tilt-parallax");
+            mod->setSettingValue<bool>("tilt-parallax", v);
+            return v;
+        }
+    );
+    tiltRow->setTooltip("Move the menu with the phone's tilt (gyroscope and accelerometer).");
+    overlay->addRow(tiltRow);
+#endif
+
     overlay->addSubsection("Music");
     auto musicRow = ToggleRow::create(
         "Play level songs in the menu", w, k,

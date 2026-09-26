@@ -2,6 +2,7 @@
 
 #include "../../audio/Sfx.hpp"
 #include "../core/Easing.hpp"
+#include "../core/Parallax.hpp"
 #include "LazerLogo.hpp"
 #include "MenuButton.hpp"
 #include "../core/RoundedBox.hpp"
@@ -62,6 +63,8 @@ public:
     void onEnter() override;
 
 protected:
+    Parallax m_parallax {"parallax-menu"};
+
     struct Entry {
         MenuButton* button;
         State min;

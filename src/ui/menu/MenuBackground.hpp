@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/Easing.hpp"
+#include "../core/Parallax.hpp"
 
 #include <Geode/cocos/include/cocos2d.h>
 #include <vector>
@@ -11,7 +12,8 @@ class Triangles;
 
 // osu!-style backdrop. Shows either GD's animated menu scene (kept running) or
 // a level image (the current song's level), drawn through a blur, dimmed, with
-// triangles drifting on top, and following the mouse a little (ParallaxContainer).
+// triangles drifting on top, and following the mouse (or the phone's tilt) a
+// little (ParallaxContainer).
 class MenuBackground : public cocos2d::CCNode {
 public:
     // `source` is GD's MenuGameLayer. It is hidden and re-drawn by this node
@@ -24,6 +26,9 @@ public:
 
     void update(float dt) override;
     void visit() override;
+    // The tilt sensor (phones) runs while a background is on screen.
+    void onEnter() override;
+    void onExit() override;
     ~MenuBackground() override {
         CC_SAFE_RELEASE(m_rt);
         CC_SAFE_RELEASE(m_rt2);
@@ -55,8 +60,7 @@ protected:
     cocos2d::CCTexture2D* m_currentTexture = nullptr;
     int m_nextImageZ = 0; // decreasing: each new image goes under the previous ones
 
-    cocos2d::CCPoint m_parallax {0, 0};
-    float m_parallaxScale = 1.f;
+    Parallax m_parallax {"parallax-background"};
 };
 
 } // namespace lazer
