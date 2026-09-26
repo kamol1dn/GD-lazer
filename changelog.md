@@ -1,8 +1,17 @@
 # Changelog
 
-## Unreleased
+## v0.4.0
 
+- The logo takes your icon's colours, with your cube in place of the "GD" text
+- New intro: the logo draws itself to the opening of osu!'s triangles theme; outro says "see you next time"
 - RobTop's levels (main levels and the Tower) have screenshots in song select, as panel thumbnails and the background
+- Song select groups: saved (the default), official and liked; "all" is gone
+- Folder dropdown for GD's saved-level folders
+- Heart levels from song select; "liked" shows only hearted levels
+- Delete unhearted levels (keeps levels in folders), from the footer
+- Level details: a song card (download, extra songs and SFX, and Jukebox's song switching when it's installed), per-level low detail mode and disable shake, and the level's leaderboard on request (loading it syncs your progress)
+- Attempts, jumps, downloads and likes on one line; the details scroll
+- Fixed: pressing play let the preview song run on into the level
 
 ## v0.3.1
 
