@@ -6,8 +6,7 @@
     1. Close Geometry Dash completely
     2. Download `kamol1dn.lazer-ui.geode` from github.com/kamol1dn/GD-lazer/releases
     3. In a file manager, open `Android/media/com.geode.launcher/game/geode/mods`, **delete** the old `kamol1dn.lazer-ui.geode`, then copy the downloaded one in (delete first, don't just overwrite)
-    4. Start the game: the logo shows your cube in your colours
-- After that, the updater works properly again. Windows was never affected
+    4. Start the game: the logo shows your cube in your colours. From then on the updater works properly (Windows was never affected)
 
 ## v0.4.2
 
