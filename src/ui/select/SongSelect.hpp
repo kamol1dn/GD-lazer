@@ -9,6 +9,7 @@
 #include <Geode/cocos/robtop/mouse_dispatcher/CCMouseDelegate.h>
 #include <functional>
 #include <map>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -66,6 +67,7 @@ protected:
     // Saved first: most players mostly play online levels.
     enum class Group { Saved, Official, Liked };
     enum class Board { Hidden, Loading, Loaded, Failed };
+    enum class LoaderPhase { In, Out, Pushed, Cancelling };
 
     struct Panel {
         size_t entry;
@@ -101,7 +103,13 @@ protected:
     void applyFilter();
     void select(size_t visibleIndex, bool scroll = true);
     void selectRandom();
+    // Play: osu!'s PlayerLoader, then the level.
     void start();
+    void buildLoader(levels::Entry const& e);
+    void updateLoader(float dt);
+    void cancelLoader();
+    // Fades a node tree, relative to each node's opacity when first faded.
+    void setTreeOpacity(cocos2d::CCNode* node, float factor);
     void openLevelPage();
     void back();
     void toggleFolders();
@@ -181,7 +189,22 @@ protected:
     int m_boardLevel = 0;               // level the leaderboard was loaded for
     geode::Ref<cocos2d::CCArray> m_boardScores;
     bool m_starting = false;
-    bool m_refreshPending = false;     // a details refresh waiting for the touch to end
+    bool m_refreshPending = false;
+
+    // The loader shown between pressing play and the level.
+    cocos2d::CCNode* m_loader = nullptr;
+    cocos2d::CCNode* m_loaderMeta = nullptr;
+    cocos2d::CCNode* m_spinner = nullptr;
+    geode::Ref<GJGameLevel> m_loaderLevel;
+    LoaderPhase m_loaderPhase = LoaderPhase::In;
+    float m_loaderMs = 0;
+    std::vector<cocos2d::CCNode*> m_uiRoots;               // song select's own nodes, faded out
+    std::unordered_map<cocos2d::CCNode*, GLubyte> m_baseOpacity;
+    Tweened<float> m_uiAlpha {1.f};
+    Tweened<float> m_loaderAlpha {0.f};
+    Tweened<float> m_loaderScale {0.7f};
+    Tweened<float> m_metaAlpha {0.f};
+    Tweened<float> m_dimTween {0.55f};     // a details refresh waiting for the touch to end
 
     float m_previewDelay = -1;     // debounce before the selected song starts
     std::string m_previewPath;

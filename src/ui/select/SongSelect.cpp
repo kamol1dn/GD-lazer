@@ -30,6 +30,10 @@ namespace {
     constexpr float PREVIEW_DELAY = 150; // SongSelect.SELECTION_DEBOUNCE
     constexpr float THUMB_DELAY = 150;
     constexpr double SCROLL_DECAY = 0.989;
+    constexpr float BACKGROUND_DIM = 0.55f;
+    constexpr float LOADER_DIM = 0.3f;       // the loader shows the background more (osu! un-dims it)
+    constexpr float PUSH_DELAY = 1800;       // PlayerLoader.PlayerPushDelay
+    constexpr float CONTENT_OUT = 300;       // PlayerLoader.CONTENT_OUT_DURATION
 
     constexpr ccColor4B PANEL_BG {36, 34, 44, 235};
     constexpr ccColor4B PANEL_HOVER {58, 54, 72, 245};
@@ -221,7 +225,7 @@ bool SongSelect::init(levels::Kind kind) {
     auto source = CCLayerGradient::create({34, 26, 50, 255}, {8, 8, 12, 255});
     source->setVisible(false);
     this->addChild(source, -10);
-    m_background = MenuBackground::create(source, 0.55f, true, true);
+    m_background = MenuBackground::create(source, BACKGROUND_DIM, true, true);
     this->addChild(m_background, -5);
 
     // osu!'s side shading: darker behind the wedges and behind the carousel.
@@ -630,14 +634,201 @@ void SongSelect::start() {
         openLevelPage();
         return;
     }
-    // Like GD's level page: the preview song stops now and the level starts its
-    // own music when it begins. (Left playing, the preview ran on into the level.)
-    m_starting = true;
-    m_previewDelay = -1;
-    FMODAudioEngine::sharedEngine()->stopAllMusic(true);
     sfx::play(sfx::sound::MENU_PLAY_SELECT);
-    returnsHere() = true;
-    CCDirector::get()->replaceScene(CCTransitionFade::create(0.5f, PlayLayer::scene(e.level, false, false)));
+    closeFolders();
+    m_starting = true;
+    m_pressed = nullptr;
+    m_loaderLevel = e.level;
+
+    // osu!'s PlayerLoader: song select fades away, the level's card scales in
+    // over its background, and after a short wait the level starts.
+    m_uiRoots.clear();
+    m_baseOpacity.clear();
+    for (auto child : CCArrayExt<CCNode*>(this->getChildren())) {
+        // Below zero: the background and its shading, which stay.
+        if (child->getZOrder() >= 0) m_uiRoots.push_back(child);
+    }
+    buildLoader(e);
+    m_loaderMs = 0;
+    m_loaderPhase = LoaderPhase::In;
+    m_uiAlpha.set(1);
+    m_uiAlpha.to(0, 300, Easing::OutQuint);
+    m_loaderScale.set(0.7f);
+    m_loaderScale.to(1, 650, Easing::OutQuint);
+    m_loaderAlpha.set(0);
+    m_loaderAlpha.to(1, 500, Easing::OutQuint);
+    m_metaAlpha.set(0);
+    m_dimTween.set(BACKGROUND_DIM);
+    m_dimTween.to(LOADER_DIM, 800, Easing::OutQuint);
+}
+
+void SongSelect::buildLoader(levels::Entry const& e) {
+    float k = m_k;
+    m_loader = CCNode::create();
+    m_loader->setPosition(m_win / 2);
+    this->addChild(m_loader, 50);
+
+    // osu!'s BeatmapMetadataDisplay: title, artist, the background in a
+    // rounded box with a spinner, then the difficulty and a details grid.
+    auto main = CCNode::create();
+    m_loader->addChild(main);
+    auto centred = [&](CCNode* parent, CCNode* node, float y) {
+        node->setAnchorPoint({0.5f, 0.5f});
+        node->setPosition({0, y});
+        parent->addChild(node);
+    };
+    float italic = 8.f; // Outfit has no italic: lean it like osu!'s italic Torus.
+    auto title = makeText(e.name, Weight::SemiBold, 40 * k);
+    title->setSkewX(italic);
+    fit(title, m_win.width * 0.8f);
+    centred(main, title, 150 * k);
+    std::string song = e.songArtist.empty() ? e.songTitle : e.songTitle + " - " + e.songArtist;
+    auto artist = makeText(song, Weight::Regular, 26 * k);
+    artist->setSkewX(italic);
+    artist->setColor(theme::CONTENT2);
+    fit(artist, m_win.width * 0.8f);
+    centred(main, artist, 110 * k);
+
+    CCSize boxSize {300 * k, 60 * k};
+    auto box = RoundedBox::create(boxSize, 10 * k, {40, 36, 52, 255});
+    box->setShadow(12 * k, {0, 0, 0, 120});
+    centred(main, box, 48 * k);
+    Ref<RoundedBox> boxRef = box;
+    levelThumbnail(e, [boxRef](CCTexture2D* texture) {
+        if (texture && boxRef->getParent()) boxRef->setTexture(texture);
+    });
+    auto shade = RoundedBox::create(boxSize, 10 * k, {0, 0, 0, 110});
+    centred(main, shade, 48 * k);
+    m_spinner = makeIcon(icon::ROTATE, 24 * k);
+    centred(main, m_spinner, 48 * k);
+
+    auto meta = CCNode::create();
+    m_loader->addChild(meta);
+    m_loaderMeta = meta;
+
+    // Difficulty: face, name and stars (or moons).
+    std::vector<std::pair<char const*, std::string>> diff;
+    if (e.stars > 0) diff.push_back({rewardIcon(e), std::to_string(e.stars)});
+    if (!e.platformer) diff.push_back({icon::CLOCK, levels::lengthName(e.length)});
+    if (e.coins > 0) diff.push_back({icon::COINS, fmt::format("{}/{}", e.coinsCollected, e.coins)});
+    auto face = difficultyFace(e, 40 * k);
+    auto diffRow = infoRow(diff, 20 * k, {255, 255, 255});
+    float rowW = 40 * k + 12 * k + diffRow->getContentSize().width;
+    face->setPosition({-rowW / 2 + 20 * k, -10 * k});
+    meta->addChild(face);
+    diffRow->setPosition({-rowW / 2 + 52 * k, -10 * k});
+    meta->addChild(diffRow);
+
+    // Details grid: label on the left of the centre, value on the right.
+    float y = -52 * k;
+    auto row = [&](char const* label, std::string const& value) {
+        if (value.empty()) return;
+        auto l = makeText(label, Weight::Regular, 17 * k);
+        l->setColor(theme::LIGHT1);
+        l->setAnchorPoint({1, 0.5f});
+        l->setPosition({-6 * k, y});
+        meta->addChild(l);
+        auto v = makeText(value, Weight::SemiBold, 17 * k);
+        v->setAnchorPoint({0, 0.5f});
+        v->setPosition({6 * k, y});
+        fit(v, m_win.width * 0.35f);
+        meta->addChild(v);
+        y -= 24 * k;
+    };
+    row("creator", e.creator);
+    row("song", e.songTitle);
+    if (!e.official) row("level id", std::to_string(e.id));
+    if (e.platformer) row("best", e.bestTime > 0 ? formatTime(e.bestTime) : "");
+    else row("best", e.normalPercent > 0 ? fmt::format("{}%", e.normalPercent) : "");
+
+    setTreeOpacity(m_loader, 0);
+}
+
+void SongSelect::setTreeOpacity(CCNode* node, float factor) {
+    if (auto rgba = dynamic_cast<CCRGBAProtocol*>(node)) {
+        auto [it, fresh] = m_baseOpacity.try_emplace(node, rgba->getOpacity());
+        rgba->setOpacity(static_cast<GLubyte>(it->second * std::clamp(factor, 0.f, 1.f)));
+        // Labels pass their opacity on to their letters themselves.
+        if (typeinfo_cast<CCLabelBMFont*>(node)) return;
+    }
+    for (auto child : CCArrayExt<CCNode*>(node->getChildren())) setTreeOpacity(child, factor);
+}
+
+void SongSelect::cancelLoader() {
+    if (!m_starting || m_loaderPhase != LoaderPhase::In) return;
+    sfx::play(sfx::sound::DEFAULT_SELECT);
+    m_loaderPhase = LoaderPhase::Cancelling;
+    m_loaderMs = 0;
+    m_uiAlpha.to(1, 300, Easing::OutQuint);
+    m_loaderAlpha.to(0, 300, Easing::OutQuint);
+    m_loaderScale.to(0.7f, 600, Easing::OutQuint);
+    m_dimTween.to(BACKGROUND_DIM, 400, Easing::OutQuint);
+}
+
+void SongSelect::updateLoader(float dt) {
+    float ms = dt * 1000.f;
+    m_loaderMs += ms;
+    for (auto t : {&m_uiAlpha, &m_loaderAlpha, &m_loaderScale, &m_metaAlpha, &m_dimTween}) t->update(dt);
+
+    switch (m_loaderPhase) {
+        case LoaderPhase::In:
+            // The details follow the card in (MetadataInfo's delayed fade).
+            if (m_loaderMs >= 500 && m_metaAlpha.target() < 1) m_metaAlpha.to(1, 500, Easing::OutQuint);
+            if (m_loaderMs >= PUSH_DELAY) {
+                // ContentOut: the card shrinks and fades while the song fades.
+                m_loaderPhase = LoaderPhase::Out;
+                m_loaderMs = 0;
+                m_loaderScale.to(0.7f, CONTENT_OUT * 2, Easing::OutQuint);
+                m_loaderAlpha.to(0, CONTENT_OUT, Easing::OutQuint);
+                FMODAudioEngine::sharedEngine()->fadeOutMusic(CONTENT_OUT / 1000.f, 0);
+            }
+            break;
+        case LoaderPhase::Out:
+            if (m_loaderMs >= CONTENT_OUT) {
+                m_loaderPhase = LoaderPhase::Pushed;
+                // Like GD's level page: nothing of the preview left playing; the
+                // level starts its own music once it begins.
+                m_previewDelay = -1;
+                FMODAudioEngine::sharedEngine()->stopAllMusic(true);
+                returnsHere() = true;
+                CCDirector::get()->replaceScene(CCTransitionFade::create(0.4f, PlayLayer::scene(m_loaderLevel, false, false)));
+            }
+            break;
+        case LoaderPhase::Cancelling:
+            if (m_loaderMs >= 400) {
+                setTreeOpacity(m_loader, 0);
+                for (auto root : m_uiRoots) setTreeOpacity(root, 1);
+                m_loader->removeFromParent();
+                m_loader = m_loaderMeta = m_spinner = nullptr;
+                m_uiRoots.clear();
+                m_baseOpacity.clear();
+                m_wedge->setPositionX(0);
+                m_carousel->setPositionX(0);
+                m_background->setDim(BACKGROUND_DIM);
+                m_starting = false;
+                return;
+            }
+            break;
+        case LoaderPhase::Pushed:
+            break;
+    }
+
+    float ui = m_uiAlpha.get();
+    for (auto root : m_uiRoots) {
+        if (root != m_loader) setTreeOpacity(root, ui);
+    }
+    // Song select's sides slide away as they fade.
+    m_wedge->setPositionX(-60 * m_k * (1 - ui));
+    m_carousel->setPositionX(100 * m_k * (1 - ui));
+
+    if (m_loader) {
+        m_loader->setScale(m_loaderScale.get());
+        float alpha = m_loaderAlpha.get();
+        setTreeOpacity(m_loader, alpha);
+        if (m_loaderMeta) setTreeOpacity(m_loaderMeta, alpha * m_metaAlpha.get());
+        if (m_spinner) m_spinner->setRotation(m_spinner->getRotation() + dt * 300.f);
+    }
+    m_background->setDim(m_dimTween.get());
 }
 
 void SongSelect::openLevelPage() {
@@ -1072,7 +1263,7 @@ void SongSelect::buildDetails(float top, float bottom) {
 }
 
 void SongSelect::refreshDetails() {
-    if (!m_hasSelection) return;
+    if (!m_hasSelection || m_starting) return;
     // Don't swap the scroll area out from under a drag.
     if (m_touchDown) {
         m_refreshPending = true;
@@ -1368,6 +1559,11 @@ void SongSelect::update(float dt) {
         dispatcher->removeDelegate(this);
         dispatcher->addDelegate(this);
     }
+    // Playing: only the loader animates; song select is frozen and fading.
+    if (m_starting) {
+        updateLoader(dt);
+        return;
+    }
     updateCarousel(dt);
 
     m_wedgeAlpha.update(dt);
@@ -1503,6 +1699,7 @@ void SongSelect::ccTouchEnded(CCTouch* touch, CCEvent*) {
 }
 
 void SongSelect::scrollWheel(float y, float) {
+    if (m_starting) return;
     // Left side: the level details; right side: the carousel.
     if (geode::cocos::getMousePos().x < m_win.width - m_rightW) {
         if (m_details) m_details->scrollWheel(y, 0);
@@ -1514,7 +1711,7 @@ void SongSelect::scrollWheel(float y, float) {
 }
 
 void SongSelect::keyDown(enumKeyCodes key, double) {
-    if (!m_hasSelection) return;
+    if (!m_hasSelection || m_starting) return;
     switch (key) {
         case KEY_Up:
             if (m_selected > 0) {
@@ -1540,6 +1737,8 @@ void SongSelect::keyDown(enumKeyCodes key, double) {
 }
 
 void SongSelect::keyBackClicked() {
+    // During the loader, back cancels it (osu!'s back button does the same).
+    if (m_starting) return cancelLoader();
     back();
 }
 
