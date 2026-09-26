@@ -37,11 +37,11 @@ bool ScrollArea::init(CCSize size) {
 
 void ScrollArea::onEnter() {
     CCNode::onEnter();
-    CCDirector::sharedDirector()->getMouseDispatcher()->addDelegate(this);
+    if (m_ownsWheel) CCDirector::sharedDirector()->getMouseDispatcher()->addDelegate(this);
 }
 
 void ScrollArea::claimWheel() {
-    if (!this->isRunning()) return;
+    if (!this->isRunning() || !m_ownsWheel) return;
     auto dispatcher = CCDirector::sharedDirector()->getMouseDispatcher();
     dispatcher->removeDelegate(this);
     dispatcher->addDelegate(this);

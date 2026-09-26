@@ -19,10 +19,12 @@ namespace icon {
     constexpr auto RANKING_STAR = "\xEE\x95\xA1";   // e561
     constexpr auto MUSIC = "\xEF\x80\x81";          // f001
     constexpr auto SEARCH = "\xEF\x80\x82";         // f002
+    constexpr auto HEART = "\xEF\x80\x84";          // f004
     constexpr auto STAR = "\xEF\x80\x85";           // f005
     constexpr auto USER = "\xEF\x80\x87";           // f007
     constexpr auto CHECK = "\xEF\x80\x8C";          // f00c
     constexpr auto XMARK = "\xEF\x80\x8D";          // f00d
+    constexpr auto SIGNAL = "\xEF\x80\x92";         // f012
     constexpr auto GEAR = "\xEF\x80\x93";           // f013
     constexpr auto HOUSE = "\xEF\x80\x95";          // f015
     constexpr auto CLOCK = "\xEF\x80\x97";          // f017
@@ -44,6 +46,7 @@ namespace icon {
     constexpr auto GIFT = "\xEF\x81\xAB";           // f06b
     constexpr auto EYE = "\xEF\x81\xAE";            // f06e
     constexpr auto SHUFFLE = "\xEF\x81\xB4";        // f074
+    constexpr auto FOLDER = "\xEF\x81\xBB";         // f07b
     constexpr auto FOLDER_OPEN = "\xEF\x81\xBC";    // f07c
     constexpr auto CHART = "\xEF\x82\x80";          // f080
     constexpr auto KEY = "\xEF\x82\x84";            // f084
@@ -55,6 +58,7 @@ namespace icon {
     constexpr auto USERS = "\xEF\x83\x80";          // f0c0
     constexpr auto LINK = "\xEF\x83\x81";           // f0c1
     constexpr auto COPY = "\xEF\x83\x85";           // f0c5
+    constexpr auto CARET_DOWN = "\xEF\x83\x97";     // f0d7
     constexpr auto ENVELOPE = "\xEF\x83\xA0";       // f0e0
     constexpr auto BOLT = "\xEF\x83\xA7";           // f0e7
     constexpr auto CLOUD_DOWN = "\xEF\x83\xAD";     // f0ed
@@ -73,6 +77,7 @@ namespace icon {
     constexpr auto CUBE = "\xEF\x86\xB2";           // f1b2
     constexpr auto SLIDERS = "\xEF\x87\x9E";        // f1de
     constexpr auto BELL_SLASH = "\xEF\x87\xB6";     // f1f6
+    constexpr auto TRASH = "\xEF\x87\xB8";          // f1f8
     constexpr auto USER_PLUS = "\xEF\x88\xB4";      // f234
     constexpr auto CIRCLE_PAUSE = "\xEF\x8A\x8B";   // f28b
     constexpr auto ID_CARD = "\xEF\x8B\x82";        // f2c2

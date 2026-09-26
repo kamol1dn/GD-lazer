@@ -27,6 +27,7 @@ struct Entry {
     int length = 0;            // 0 tiny .. 4 XL, 5 platformer
     bool platformer = false;   // rated in moons instead of stars
     int bestTime = 0;          // platformer best time, ms (0 = none)
+    int folder = 0;            // GD's saved-level folder (0 = none)
     std::string search;        // lower-cased name, creator and song, for filtering
 };
 
@@ -40,6 +41,18 @@ std::vector<Entry> all(Kind kind);
 
 // Official levels first by number, saved ones newest-saved first (GD's order).
 enum class Sort { Default, Title, Difficulty, Progress };
+
+// Hearted in GD (the level page's heart). Saved levels only.
+bool favorited(Entry const& entry);
+void setFavorited(Entry const& entry, bool favorited);
+
+// Name of a saved-levels folder ("folder 3" if GD has no name for it).
+std::string folderName(int folder);
+
+// Saved levels that "delete unhearted" removes: not hearted and not in a folder
+// (of either kind). deleteUnhearted() returns how many it deleted.
+int countUnhearted();
+int deleteUnhearted();
 
 cocos2d::ccColor3B difficultyColor(int difficulty);
 char const* lengthName(int length);

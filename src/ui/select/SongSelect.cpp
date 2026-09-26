@@ -40,6 +40,7 @@ namespace {
     // Kept between visits (and across a round trip into gameplay), per kind.
     struct Remembered {
         int group = 0;
+        int folder = 0;
         levels::Sort sort = levels::Sort::Default;
         std::string query;
         int selectedId = -1;
@@ -59,6 +60,12 @@ namespace {
         return fmt::format("{}.{:03}", seconds, ms % 1000);
     }
 
+    // Our popups get the Lazer look (see PopupStyle).
+    void showStyled(FLAlertLayer* popup) {
+        popup->setUserObject("restyle"_spr, CCBool::create(true));
+        popup->show();
+    }
+
     // Stars for classic levels, moons for platformers.
     char const* rewardIcon(levels::Entry const& e) { return e.platformer ? icon::MOON : icon::STAR; }
 
@@ -67,6 +74,19 @@ namespace {
     std::string lower(std::string s) {
         for (auto& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         return s;
+    }
+
+    // A button's label changed: keep it inside the button's (fixed-size) background.
+    void fitLabel(CCLabelBMFont* label, CCNode* button) {
+        auto base = static_cast<CCFloat*>(label->getUserObject("base-scale"_spr));
+        if (!base) {
+            base = CCFloat::create(label->getScale());
+            label->setUserObject("base-scale"_spr, base);
+        }
+        label->setScale(base->getValue());
+        float room = button->getContentSize().width - button->getContentSize().height * 0.45f - label->getPositionX();
+        float w = label->getScaledContentSize().width;
+        if (w > room && w > 0) label->setScale(base->getValue() * room / w);
     }
 
     // Shrinks a label to fit `maxWidth`, cutting it with an ellipsis if it would get too small.
@@ -222,7 +242,8 @@ bool SongSelect::init(levels::Kind kind) {
     buildFooter();
 
     auto& r = remembered();
-    m_group = static_cast<Group>(r.group);
+    m_group = static_cast<Group>(std::clamp(r.group, 0, 2));
+    m_folder = r.folder;
     m_sort = r.sort;
     m_query = r.query;
     if (m_search && !m_query.empty()) m_search->setString(m_query);
@@ -245,6 +266,8 @@ void SongSelect::onEnter() {
 
 void SongSelect::onExit() {
     CCDirector::get()->getMouseDispatcher()->removeDelegate(this);
+    auto glm = GameLevelManager::sharedState();
+    if (glm->m_leaderboardManagerDelegate == this) glm->m_leaderboardManagerDelegate = nullptr;
     CCLayer::onExit();
 }
 
@@ -276,7 +299,7 @@ void SongSelect::buildFilter() {
     this->addChild(icon, 5);
 
     float inputScale = 0.8f;
-    m_search = TextInput::create((searchW - 50 * k) / inputScale, "type to search", "outfit-regular.fnt"_spr);
+    m_search = TextInput::create((searchW - 150 * k) / inputScale, "type to search", "outfit-regular.fnt"_spr);
     m_search->hideBG();
     m_search->setTextAlign(TextInputAlign::Left);
     m_search->setScale(inputScale);
@@ -289,20 +312,36 @@ void SongSelect::buildFilter() {
     });
     this->addChild(m_search, 5);
 
-    // Groups (osu!'s collection / grouping) and sort.
+    m_countLabel = makeText("", Weight::Regular, 15 * k);
+    m_countLabel->setColor(theme::LIGHT1);
+    m_countLabel->setAnchorPoint({1, 0.5f});
+    m_countLabel->setPosition({left + 30 * k + searchW - 14 * k, searchY});
+    this->addChild(m_countLabel, 5);
+
+    // Groups (osu!'s collection / grouping), GD's folders and sort.
     float rowY = m_win.height - 72 * k;
     float x = left + 22 * k;
-    char const* names[] = {"all", "official", "saved"};
+    char const* names[] = {"saved", "official", "liked"};
+    char const* glyphs[] = {nullptr, nullptr, icon::HEART};
     for (int i = 0; i < 3; i++) {
-        auto& tab = addButton(m_tabs, this, nullptr, names[i], {x, rowY}, 28 * k, TAB, [this, i] {
+        auto& tab = addButton(m_tabs, this, glyphs[i], names[i], {x, rowY}, 28 * k, TAB, [this, i] {
             m_group = static_cast<Group>(i);
             remembered().group = i;
+            closeFolders();
             applyFilter();
         }, 0);
         x += tab.node->getContentSize().width + 6 * k;
     }
 
-    auto& sort = addButton(m_buttons, this, icon::SLIDERS, "sort: default", {x + 10 * k, rowY}, 28 * k, TAB, [this] {
+    auto& folders = addButton(m_buttons, this, icon::FOLDER, "all folders", {x + 4 * k, rowY}, 28 * k, TAB,
+                              [this] { this->toggleFolders(); }, 0);
+    m_folderButton = m_buttons.size() - 1;
+    for (auto child : CCArrayExt<CCNode*>(folders.node->getChildren())) {
+        if (auto label = typeinfo_cast<CCLabelBMFont*>(child); label && label->getTag() == 1) m_folderLabel = label;
+    }
+    x += 4 * k + folders.node->getContentSize().width + 6 * k;
+
+    auto& sort = addButton(m_buttons, this, icon::SLIDERS, "sort: difficulty", {x, rowY}, 28 * k, TAB, [this] {
         m_sort = static_cast<levels::Sort>((static_cast<int>(m_sort) + 1) % 4);
         remembered().sort = m_sort;
         applyFilter();
@@ -310,12 +349,85 @@ void SongSelect::buildFilter() {
     for (auto child : CCArrayExt<CCNode*>(sort.node->getChildren())) {
         if (auto label = typeinfo_cast<CCLabelBMFont*>(child); label && label->getTag() == 1) m_sortLabel = label;
     }
+}
 
-    m_countLabel = makeText("", Weight::Regular, 15 * k);
-    m_countLabel->setColor(theme::LIGHT1);
-    m_countLabel->setAnchorPoint({1, 0.5f});
-    m_countLabel->setPosition({m_win.width - 18 * k, rowY});
-    this->addChild(m_countLabel, 5);
+void SongSelect::toggleFolders() {
+    if (m_folderMenu) return closeFolders();
+    float k = m_k;
+    std::vector<int> ids;
+    for (auto const& e : m_entries) {
+        if (!e.official && e.folder > 0 && std::find(ids.begin(), ids.end(), e.folder) == ids.end()) ids.push_back(e.folder);
+    }
+    std::sort(ids.begin(), ids.end());
+
+    auto anchor = m_buttons[m_folderButton].node;
+    float itemH = 28 * k, gap = 4 * k, pad = 6 * k;
+    float width = std::max(anchor->getContentSize().width, 170 * k);
+    size_t count = ids.size() + (ids.empty() ? 2 : 1);
+    float height = count * itemH + (count - 1) * gap + pad * 2;
+
+    m_folderMenu = CCNode::create();
+    m_folderMenu->setPosition({anchor->getPositionX(), anchor->getPositionY() - itemH / 2 - 6 * k - height});
+    this->addChild(m_folderMenu, 30);
+    auto bg = RoundedBox::create({width + pad * 2, height}, 8 * k, {20, 18, 28, 245});
+    bg->setShadow(12 * k, {0, 0, 0, 120});
+    bg->setAnchorPoint({0, 0});
+    bg->setPosition({-pad, 0});
+    m_folderMenu->addChild(bg);
+
+    float y = height - pad - itemH / 2;
+    auto item = [&](std::string const& name, int folder) {
+        std::function<void()> action;
+        if (folder >= 0) {
+            action = [this, folder] {
+                m_folder = folder;
+                remembered().folder = folder;
+                closeFolders();
+                applyFilter();
+            };
+        }
+        auto& b = addButton(m_folderItems, m_folderMenu, folder > 0 ? icon::FOLDER : nullptr, name, {0, y}, itemH, TAB,
+                            std::move(action), 0);
+        b.selected = folder == m_folder;
+        // Full-width rows.
+        b.node->setContentSize({width, itemH});
+        b.bg->setContentSize({width, itemH});
+        y -= itemH + gap;
+    };
+    item("all folders", 0);
+    for (int id : ids) item(levels::folderName(id), id);
+    if (ids.empty()) item("no folders yet", -1);
+}
+
+void SongSelect::closeFolders() {
+    if (!m_folderMenu) return;
+    if (m_pressed >= m_folderItems.data() && m_pressed < m_folderItems.data() + m_folderItems.size()) m_pressed = nullptr;
+    m_folderItems.clear();
+    m_folderMenu->removeFromParent();
+    m_folderMenu = nullptr;
+}
+
+void SongSelect::confirmDeleteUnhearted() {
+    int count = levels::countUnhearted();
+    if (count == 0) {
+        showStyled(createQuickPopup("Nothing to delete", "Every saved level is hearted or in a folder.", "OK", nullptr,
+                                    [](auto, bool) {}, false));
+        return;
+    }
+    Ref<SongSelect> self = this;
+    showStyled(createQuickPopup(
+        "Delete unhearted levels",
+        fmt::format("Delete <cr>{}</c> saved level{} that aren't hearted or in a folder? This can't be undone.",
+                    count, count == 1 ? "" : "s"),
+        "Cancel", "Delete",
+        [self](auto, bool yes) {
+            if (!yes) return;
+            levels::deleteUnhearted();
+            self->m_entries = levels::all(self->m_kind);
+            self->applyFilter();
+        },
+        false
+    ));
 }
 
 // --- bottom: footer ---
@@ -331,7 +443,9 @@ void SongSelect::buildFooter() {
     float x = back.node->getPositionX() + back.node->getContentSize().width + 14 * k;
     auto& random = addButton(m_buttons, this, icon::SHUFFLE, "random", {x, y}, h, TAB, [this] { this->selectRandom(); }, skewDegrees());
     x += random.node->getContentSize().width + 10 * k;
-    addButton(m_buttons, this, icon::CIRCLE_INFO, "level page", {x, y}, h, TAB, [this] { this->openLevelPage(); }, skewDegrees());
+    auto& page = addButton(m_buttons, this, icon::CIRCLE_INFO, "level page", {x, y}, h, TAB, [this] { this->openLevelPage(); }, skewDegrees());
+    x += page.node->getContentSize().width + 10 * k;
+    addButton(m_buttons, this, icon::TRASH, "delete unhearted", {x, y}, h, TAB, [this] { this->confirmDeleteUnhearted(); }, skewDegrees());
 
     auto& play = addButton(m_buttons, this, icon::PLAY, "play", {0, y}, h, PURPLE, [this] { this->start(); }, skewDegrees());
     play.node->setPositionX(m_win.width - play.node->getContentSize().width + 12 * k);
@@ -397,8 +511,9 @@ void SongSelect::applyFilter() {
     m_visible.clear();
     for (size_t i = 0; i < m_entries.size(); i++) {
         auto const& e = m_entries[i];
-        if (m_group == Group::Official && !e.official) continue;
-        if (m_group == Group::Saved && e.official) continue;
+        if ((m_group == Group::Official) != e.official) continue;
+        if (m_group == Group::Liked && !levels::favorited(e)) continue;
+        if (m_group != Group::Official && m_folder != 0 && e.folder != m_folder) continue;
         if (!query.empty() && e.search.find(query) == std::string::npos) continue;
         m_visible.push_back(i);
     }
@@ -431,8 +546,19 @@ void SongSelect::applyFilter() {
     m_panels.clear();
 
     for (size_t i = 0; i < m_tabs.size(); i++) m_tabs[i].selected = static_cast<int>(m_group) == static_cast<int>(i);
+    // RobTop's levels aren't in folders.
+    auto& folderButton = m_buttons[m_folderButton];
+    folderButton.node->setVisible(m_group != Group::Official);
+    folderButton.selected = m_folder != 0;
+    if (m_folderLabel) {
+        m_folderLabel->setString(m_folder == 0 ? "all folders" : levels::folderName(m_folder).c_str());
+        fitLabel(m_folderLabel, folderButton.node);
+    }
     static char const* SORT_NAMES[] = {"sort: default", "sort: title", "sort: difficulty", "sort: progress"};
-    if (m_sortLabel) m_sortLabel->setString(SORT_NAMES[static_cast<int>(m_sort)]);
+    if (m_sortLabel) {
+        m_sortLabel->setString(SORT_NAMES[static_cast<int>(m_sort)]);
+        fitLabel(m_sortLabel, m_sortLabel->getParent());
+    }
     if (m_countLabel) {
         m_countLabel->setString(fmt::format("{} {} level{}", m_visible.size(),
             m_kind == levels::Kind::Platformer ? "platformer" : "classic", m_visible.size() == 1 ? "" : "s").c_str());
@@ -498,12 +624,17 @@ void SongSelect::selectRandom() {
 }
 
 void SongSelect::start() {
-    if (!m_hasSelection) return;
+    if (!m_hasSelection || m_starting) return;
     auto const& e = m_entries[m_visible[m_selected]];
     if (!levels::readyToPlay(e)) {
         openLevelPage();
         return;
     }
+    // Like GD's level page: the preview song stops now and the level starts its
+    // own music when it begins. (Left playing, the preview ran on into the level.)
+    m_starting = true;
+    m_previewDelay = -1;
+    FMODAudioEngine::sharedEngine()->stopAllMusic(true);
     sfx::play(sfx::sound::MENU_PLAY_SELECT);
     returnsHere() = true;
     CCDirector::get()->replaceScene(CCTransitionFade::create(0.5f, PlayLayer::scene(e.level, false, false)));
@@ -542,25 +673,42 @@ void SongSelect::previewSong() {
 
 // --- left: title wedge + details ---
 
-void SongSelect::updateWedge() {
+void SongSelect::updateWedge(bool animate) {
+    // Rebuilt from scratch: drop the old level's buttons (and any press on them).
+    if (m_pressed >= m_wedgeButtons.data() && m_pressed < m_wedgeButtons.data() + m_wedgeButtons.size()) m_pressed = nullptr;
+    m_wedgeButtons.clear();
+    m_details = nullptr;
+    m_songWidget = nullptr;
     m_wedge->removeAllChildren();
-    m_wedge->setPositionX(-24 * m_k);
-    m_wedgeAlpha.set(0);
-    m_wedgeAlpha.to(1, 300, Easing::OutQuint);
+    if (animate) {
+        m_wedge->setPositionX(-24 * m_k);
+        m_wedgeAlpha.set(0);
+        m_wedgeAlpha.to(1, 300, Easing::OutQuint);
+    }
     float k = m_k;
     float H = m_win.height;
     float w = m_leftW;
 
     if (!m_hasSelection) {
-        auto none = makeText(m_entries.empty() ? "no levels yet" : "no levels match your search", Weight::SemiBold, 26 * k);
+        std::string text = "no levels match your search";
+        if (m_entries.empty()) text = "no levels yet";
+        else if (m_query.empty() && m_group == Group::Liked) text = "no hearted levels yet";
+        else if (m_query.empty() && m_folder != 0) text = "nothing in this folder";
+        auto none = makeText(text, Weight::SemiBold, 26 * k);
         none->setColor(theme::LIGHT1);
         none->setAnchorPoint({0, 0.5f});
         none->setPosition({40 * k, H - 60 * k});
         m_wedge->addChild(none);
+        if (m_group == Group::Liked && m_query.empty()) {
+            auto hint = makeText("heart a level with the heart next to its title", Weight::Regular, 17 * k);
+            hint->setColor(theme::CONTENT2);
+            hint->setAnchorPoint({0, 0.5f});
+            hint->setPosition({40 * k, H - 94 * k});
+            m_wedge->addChild(hint);
+        }
         return;
     }
     auto const& e = m_entries[m_visible[m_selected]];
-    auto accent = levels::difficultyColor(e.difficulty);
 
     // Title wedge.
     float titleH = 170 * k;
@@ -572,11 +720,36 @@ void SongSelect::updateWedge() {
 
     float x0 = 36 * k;
     float maxW = w - x0 - 40 * k;
+    float titleW = e.official ? maxW : maxW - 56 * k;
     auto title = makeText(e.name, Weight::SemiBold, 36 * k);
     title->setAnchorPoint({0, 0.5f});
     title->setPosition({x0, H - 38 * k});
-    fit(title, maxW);
+    fit(title, titleW);
     m_wedge->addChild(title, 1);
+
+    // Heart (GD's favourite): saved levels only, like the level page.
+    if (!e.official) {
+        size_t index = m_wedgeButtons.size();
+        float heartH = 30 * k;
+        auto& heart = addButton(m_wedgeButtons, m_wedge, icon::HEART, "", {x0 + title->getScaledContentSize().width + 14 * k, H - 38 * k}, heartH,
+                                levels::favorited(e) ? PINK : TAB, [this, index] {
+            if (!m_hasSelection || index >= m_wedgeButtons.size()) return;
+            auto const& entry = m_entries[m_visible[m_selected]];
+            bool on = !levels::favorited(entry);
+            levels::setFavorited(entry, on);
+            m_wedgeButtons[index].color = on ? PINK : TAB;
+            sfx::play(on ? sfx::sound::CHECK_ON : sfx::sound::CHECK_OFF);
+        }, 0);
+        // Icon only: a small square-ish pill, icon centred.
+        CCSize size {heartH * 1.4f, heartH};
+        heart.node->setContentSize(size);
+        heart.bg->setContentSize(size);
+        for (auto child : CCArrayExt<CCNode*>(heart.node->getChildren())) {
+            if (child == heart.bg) continue;
+            child->setAnchorPoint({0.5f, 0.5f});
+            child->setPosition(size / 2);
+        }
+    }
 
     auto song = infoRow({{icon::MUSIC, e.songArtist.empty() ? e.songTitle : e.songTitle + "  -  " + e.songArtist}},
                         17 * k, theme::CONTENT2);
@@ -604,7 +777,7 @@ void SongSelect::updateWedge() {
     statsRow->setPosition({x0 + 44 * k, statsY});
     m_wedge->addChild(statsRow, 1);
 
-    // Details.
+    // Details panel, scrollable: there's more than fits on short screens.
     float top = H - titleH - 8 * k;
     float bottom = m_footerH + 10 * k;
     auto details = RoundedBox::create({w + 60 * k, top - bottom}, CORNER * k, {0, 0, 0, 130});
@@ -613,40 +786,66 @@ void SongSelect::updateWedge() {
     details->setPosition({-60 * k - (top - bottom) * SHEAR, bottom});
     details->setSkewX(skewDegrees());
     m_wedge->addChild(details);
+    buildDetails(top, bottom);
+}
 
-    float y = top - 30 * k;
+void SongSelect::buildDetails(float top, float bottom) {
+    auto const& e = m_entries[m_visible[m_selected]];
+    auto level = e.level.data();
+    auto accent = levels::difficultyColor(e.difficulty);
+    float k = m_k;
+    float x0 = 36 * k;
+    // The panel is sheared: its right edge slants left towards the bottom by
+    // (height x shear). Keep everything inside the narrowest part.
+    float maxW = m_leftW - x0 - 40 * k - (top - bottom) * SHEAR;
+
+    // Content hangs from the top of the scroll area: y is negative, downwards.
+    float inset = 10 * k;
+    m_details = ScrollArea::create({maxW + inset * 2, top - bottom - 12 * k});
+    m_details->setOwnsWheel(false); // scrollWheel below routes it
+    m_details->setPosition({x0 - inset, bottom + 6 * k});
+    m_wedge->addChild(m_details, 1);
+    auto content = m_details->content();
+    float y = -22 * k;
+
+    auto add = [&](CCNode* node, float x, float atY) {
+        node->setPosition({inset + x, atY});
+        content->addChild(node);
+    };
     auto section = [&](char const* text) {
+        y -= 6 * k;
         auto label = makeText(text, Weight::SemiBold, 15 * k);
         label->setColor(theme::LIGHT1);
         label->setAnchorPoint({0, 0.5f});
-        label->setPosition({x0, y});
-        m_wedge->addChild(label, 1);
-        y -= 26 * k;
+        add(label, 0, y);
+        y -= 28 * k;
     };
     auto bar = [&](char const* name, int percent, ccColor3B color) {
-        float barW = maxW - 120 * k;
+        float barW = maxW - 130 * k;
         auto label = makeText(name, Weight::Regular, 15 * k);
         label->setAnchorPoint({0, 0.5f});
-        label->setPosition({x0, y});
-        m_wedge->addChild(label, 1);
+        add(label, 0, y);
         auto track = RoundedBox::create({barW, 8 * k}, 4 * k, {255, 255, 255, 30});
         track->setAnchorPoint({0, 0.5f});
-        track->setPosition({x0 + 80 * k, y});
-        m_wedge->addChild(track, 1);
+        add(track, 80 * k, y);
         if (percent > 0) {
             auto fill = RoundedBox::create({barW * std::clamp(percent, 0, 100) / 100.f, 8 * k}, 4 * k,
                                            {color.r, color.g, color.b, 255});
             fill->setAnchorPoint({0, 0.5f});
-            fill->setPosition({x0 + 80 * k, y});
-            m_wedge->addChild(fill, 2);
+            add(fill, 80 * k, y);
         }
         auto value = makeText(fmt::format("{}%", percent), Weight::SemiBold, 15 * k);
         value->setAnchorPoint({0, 0.5f});
-        value->setPosition({x0 + 90 * k + barW, y});
-        m_wedge->addChild(value, 1);
+        add(value, 90 * k + barW, y);
         y -= 26 * k;
     };
+    auto button = [&](char const* glyph, std::string const& label, ccColor4B color, std::function<void()> action) -> Button& {
+        auto& b = addButton(m_wedgeButtons, content, glyph, label, {inset, y}, 30 * k, color, std::move(action), 0);
+        b.clip = m_details;
+        return b;
+    };
 
+    // Progress.
     section("progress");
     if (e.platformer) {
         // Platformers have no percentage: beaten or not, and the best time.
@@ -654,43 +853,358 @@ void SongSelect::updateWedge() {
             {e.normalPercent >= 100 ? icon::CHECK : icon::XMARK, e.normalPercent >= 100 ? "completed" : "not completed"},
             {icon::CLOCK, e.bestTime > 0 ? "best " + formatTime(e.bestTime) : "no best time"},
         }, 15 * k, theme::CONTENT1);
-        best->setPosition({x0, y});
-        m_wedge->addChild(best, 1);
+        add(best, 0, y);
         y -= 26 * k;
     } else {
         bar("normal", e.normalPercent, accent);
         bar("practice", e.practicePercent, {100, 200, 255});
     }
 
-    auto level = e.level.data();
-    y -= 6 * k;
-    auto counts = infoRow({
+    // Counts in one line.
+    std::vector<std::pair<char const*, std::string>> counts {
         {icon::ROTATE, fmt::format("{} attempts", level->m_attempts.value())},
         {icon::ARROW_UP, fmt::format("{} jumps", level->m_jumps.value())},
-    }, 15 * k, theme::CONTENT2);
-    counts->setPosition({x0, y});
-    m_wedge->addChild(counts, 1);
+    };
+    if (!e.official) {
+        counts.push_back({icon::CLOUD_DOWN, fmt::format("{}", level->m_downloads)});
+        counts.push_back({icon::THUMBS_UP, fmt::format("{}", level->m_likes)});
+    }
+    auto countRow = infoRow(counts, 15 * k, theme::CONTENT2);
+    if (countRow->getContentSize().width > maxW) countRow->setScale(maxW / countRow->getContentSize().width);
+    add(countRow, 0, y - 4 * k);
     y -= 34 * k;
 
+    // Description.
     if (!e.official) {
-        auto online = infoRow({
-            {icon::CLOUD_DOWN, fmt::format("{}", level->m_downloads)},
-            {icon::THUMBS_UP, fmt::format("{}", level->m_likes)},
-        }, 15 * k, theme::CONTENT2);
-        online->setPosition({x0, y});
-        m_wedge->addChild(online, 1);
-        y -= 34 * k;
-
         std::string desc = level->m_levelDesc;
         if (auto decoded = utils::base64::decodeString(desc)) desc = *decoded;
-        if (!desc.empty() && y > bottom + 40 * k) {
+        if (!desc.empty()) {
             section("description");
+            // The lines hang down from the node's origin.
             auto text = makeWrappedText(desc, 15 * k, maxW, theme::CONTENT2);
-            text->setAnchorPoint({0, 1});
-            text->setPosition({x0, y + 10 * k});
-            m_wedge->addChild(text, 1);
+            add(text, 0, y + 9 * k);
+            y -= text->getScaledContentSize().height + 16 * k;
         }
     }
+
+    // Songs: GD's own song widget (the level page's) runs hidden and does the
+    // work: downloads, a level's extra songs and SFX, and whatever other mods
+    // add to it (Jukebox's song swapping). The card below mirrors it and
+    // presses its buttons (see updateSongCard).
+    section(level->m_songIDs.empty() ? "song" : "songs");
+    SongInfoObject* info = nullptr;
+    if (level->m_songID > 0) {
+        info = MusicDownloadManager::sharedState()->getSongInfoObject(level->m_songID);
+        if (!info) info = SongInfoObject::create(level->m_songID);
+    } else {
+        info = LevelTools::getSongObject(level->m_audioTrack);
+    }
+    m_songCard = {};
+    if (auto widget = info ? CustomSongWidget::create(info, this, false, false, true, level->m_songID <= 0, false, false, 0) : nullptr) {
+        widget->updateWithMultiAssets(level->m_songIDs, level->m_sfxIDs, 0);
+        // In the scene (so it keeps its download timers) but never drawn or touched.
+        widget->setVisible(false);
+        m_wedge->addChild(widget);
+        m_songWidget = widget;
+
+        float cardH = 124 * k;
+        auto card = RoundedBox::create({maxW + 8 * k, cardH}, 10 * k, {255, 255, 255, 14});
+        card->setAnchorPoint({0, 1});
+        add(card, -4 * k, y + 14 * k);
+        float cx = 12 * k;
+        float row = y;
+
+        auto tile = RoundedBox::create({44 * k, 44 * k}, 10 * k, theme::COLOUR3);
+        tile->setAnchorPoint({0, 0.5f});
+        add(tile, cx, row - 16 * k);
+        auto note = makeIcon(icon::MUSIC, 20 * k);
+        add(note, cx + 22 * k, row - 16 * k);
+
+        float tx = cx + 58 * k;
+        float textW = maxW - tx - 4 * k;
+        auto label = [&](Weight weight, float size, ccColor3B color, float atY) {
+            auto l = makeText(" ", weight, size);
+            l->setColor(color);
+            l->setAnchorPoint({0, 0.5f});
+            add(l, tx, atY);
+            return l;
+        };
+        m_songCard.title = label(Weight::SemiBold, 18 * k, {255, 255, 255}, row - 2 * k);
+        m_songCard.artist = label(Weight::Regular, 15 * k, theme::CONTENT2, row - 24 * k);
+        m_songCard.info = label(Weight::Regular, 13 * k, theme::LIGHT1, row - 44 * k);
+        m_songCard.textW = textW;
+
+        // Download progress, over the info line while downloading.
+        m_songCard.barW = textW;
+        m_songCard.track = RoundedBox::create({textW, 6 * k}, 3 * k, {255, 255, 255, 30});
+        m_songCard.track->setAnchorPoint({0, 0.5f});
+        add(m_songCard.track, tx, row - 44 * k);
+        m_songCard.fill = RoundedBox::create({6 * k, 6 * k}, 3 * k, theme::COLOUR3);
+        m_songCard.fill->setAnchorPoint({0, 0.5f});
+        add(m_songCard.fill, tx, row - 44 * k);
+
+        // Buttons: one per widget button, shown while GD shows it.
+        y = row - 84 * k;
+        auto forward = [this](char const* glyph, std::string const& text, ccColor4B color, std::function<void()> press) {
+            auto& b = addButton(m_wedgeButtons, m_details->content(), glyph, text, {0, 0}, 28 * m_k, color, std::move(press), 0);
+            b.clip = m_details;
+            m_songCard.buttons.push_back(m_wedgeButtons.size() - 1);
+            return m_wedgeButtons.size() - 1;
+        };
+        Ref<CustomSongWidget> w = widget;
+        m_songCard.download = forward(icon::CLOUD_DOWN, "download", theme::COLOUR3, [w] {
+            if (w->m_downloadBtn) w->onDownload(w->m_downloadBtn);
+        });
+        m_songCard.cancel = forward(icon::XMARK, "cancel", TAB, [w] {
+            if (w->m_cancelDownloadBtn) w->onCancelDownload(w->m_cancelDownloadBtn);
+        });
+        m_songCard.getInfo = forward(icon::ROTATE, "get info", TAB, [w] {
+            if (w->m_getSongInfoBtn) w->onGetSongInfo(w->m_getSongInfoBtn);
+        });
+        m_songCard.jukebox = forward(icon::MUSIC, "switch song", TAB, [w] {
+            if (auto disc = typeinfo_cast<CCMenuItem*>(w->querySelector("fleym.nongd/nong-button"))) disc->activate();
+        });
+        m_songCard.more = forward(icon::LIST, "all assets", TAB, [w] {
+            if (w->m_moreBtn) w->onMore(w->m_moreBtn);
+        });
+        m_songCard.infoBtn = forward(icon::CIRCLE_INFO, "info", TAB, [w] {
+            if (w->m_infoBtn) w->onInfo(w->m_infoBtn);
+        });
+        m_songCard.remove = forward(icon::TRASH, "delete", TAB, [w] {
+            if (w->m_deleteBtn) w->onDelete(w->m_deleteBtn);
+        });
+        m_songCard.buttonY = y;
+        m_songCard.buttonX = inset + cx;
+        y = row - cardH - 4 * k;
+        updateSongCard();
+    }
+
+    // Level options (GD's per-level settings from the level page).
+    section("options");
+    float x = 0;
+    auto toggle = [&](char const* label, bool on, std::function<bool()> flip) {
+        size_t index = m_wedgeButtons.size();
+        auto& b = button(nullptr, label, TAB, [this, index, flip] {
+            if (index >= m_wedgeButtons.size()) return;
+            bool now = flip();
+            m_wedgeButtons[index].selected = now;
+            sfx::play(now ? sfx::sound::CHECK_ON : sfx::sound::CHECK_OFF);
+        });
+        b.selected = on;
+        b.node->setPositionX(inset + x);
+        x += b.node->getContentSize().width + 8 * k;
+    };
+    Ref<GJGameLevel> ref = level;
+    if (level->m_lowDetailMode) {
+        toggle("low detail mode", level->m_lowDetailModeToggled, [ref] {
+            ref->m_lowDetailModeToggled = !ref->m_lowDetailModeToggled;
+            return ref->m_lowDetailModeToggled;
+        });
+    }
+    toggle("disable shake", level->m_disableShakeToggled, [ref] {
+        ref->m_disableShakeToggled = !ref->m_disableShakeToggled;
+        return ref->m_disableShakeToggled;
+    });
+    y -= 40 * k;
+
+    // Leaderboard: loading it uploads your best to GD's servers, so only on request.
+    if (!e.official) {
+        section("leaderboard");
+        bool here = m_boardLevel == e.id;
+        if (!here || m_board == Board::Hidden) {
+            button(icon::RANKING_STAR, "show leaderboard (syncs your progress)", TAB, [this] { this->loadLeaderboard(); });
+            y -= 40 * k;
+        } else if (m_board == Board::Loading) {
+            auto label = makeText("loading...", Weight::Regular, 15 * k);
+            label->setColor(theme::CONTENT2);
+            label->setAnchorPoint({0, 0.5f});
+            add(label, 0, y);
+            y -= 30 * k;
+        } else if (m_board == Board::Failed || !m_boardScores || m_boardScores->count() == 0) {
+            auto label = makeText(m_board == Board::Failed ? "couldn't load the leaderboard" : "no scores yet", Weight::Regular, 15 * k);
+            label->setColor(theme::CONTENT2);
+            label->setAnchorPoint({0, 0.5f});
+            add(label, 0, y);
+            y -= 34 * k;
+            button(icon::ROTATE, "try again", TAB, [this] { this->loadLeaderboard(); });
+            y -= 40 * k;
+        } else {
+            int me = GJAccountManager::get()->m_accountID;
+            int shown = 0;
+            for (auto score : CCArrayExt<GJUserScore*>(m_boardScores)) {
+                if (shown++ >= 15) break;
+                bool mine = me > 0 && score->m_accountID == me;
+                auto color = mine ? theme::rgb(theme::COLOUR3) : theme::CONTENT1;
+                if (mine) {
+                    auto hl = RoundedBox::create({maxW + 8 * k, 26 * k}, 6 * k, {255, 255, 255, 20});
+                    hl->setAnchorPoint({0, 0.5f});
+                    add(hl, -4 * k, y);
+                }
+                auto rank = makeText(fmt::format("#{}", score->m_playerRank), Weight::SemiBold, 15 * k);
+                rank->setColor(color);
+                rank->setAnchorPoint({0, 0.5f});
+                add(rank, 0, y);
+                auto name = makeText(score->m_userName, Weight::Regular, 15 * k);
+                name->setColor(color);
+                name->setAnchorPoint({0, 0.5f});
+                fit(name, maxW - 190 * k);
+                add(name, 50 * k, y);
+                // Level scores reuse the profile fields: percent (or time) in stars, coins in coins.
+                std::string value = e.platformer ? formatTime(score->m_stars) : fmt::format("{}%", score->m_stars);
+                auto valueLabel = makeText(value, Weight::SemiBold, 15 * k);
+                valueLabel->setColor(color);
+                valueLabel->setAnchorPoint({1, 0.5f});
+                add(valueLabel, maxW - 40 * k, y);
+                if (score->m_secretCoins > 0) {
+                    auto coins = infoRow({{icon::COINS, std::to_string(score->m_secretCoins)}}, 13 * k, theme::CONTENT2);
+                    add(coins, maxW - 32 * k, y);
+                }
+                y -= 26 * k;
+            }
+            y -= 8 * k;
+            button(icon::ROTATE, "refresh (syncs your progress)", TAB, [this] { this->loadLeaderboard(); });
+            y -= 40 * k;
+        }
+    }
+
+    m_details->setContentHeight(-y + 10 * k);
+    updateSongCard();
+}
+
+void SongSelect::refreshDetails() {
+    if (!m_hasSelection) return;
+    // Don't swap the scroll area out from under a drag.
+    if (m_touchDown) {
+        m_refreshPending = true;
+        return;
+    }
+    m_refreshPending = false;
+    float scroll = m_details ? m_details->scroll() : 0;
+    updateWedge(false);
+    if (m_details) m_details->scrollTo(scroll, false);
+}
+
+void SongSelect::updateSongCard() {
+    auto w = m_songWidget;
+    auto& c = m_songCard;
+    if (!w || !c.title) return;
+
+    auto text = [](CCLabelBMFont* label) -> std::string {
+        return label && label->isVisible() ? label->getString() : "";
+    };
+    auto shown = [](CCNode* node) {
+        for (auto n = node; n; n = n->getParent()) {
+            // The widget itself is always hidden: look at its own parts only.
+            if (typeinfo_cast<CustomSongWidget*>(n)) return true;
+            if (!n->isVisible()) return false;
+        }
+        return false;
+    };
+
+    // Texts: GD's (and Jukebox's, which renames the song) labels.
+    std::string title = w->m_songLabel ? std::string(w->m_songLabel->getString()) : "";
+    if (auto jb = typeinfo_cast<CCLabelBMFont*>(w->querySelector("fleym.nongd/song-name-label"))) title = jb->getString();
+    if (title.empty() && w->m_songInfoObject) title = w->m_songInfoObject->m_songName;
+    std::string artist = text(w->m_artistLabel);
+    std::string error = text(w->m_errorLabel);
+    std::string info = error.empty() ? text(w->m_songIDLabel) : error;
+    bool downloading = w->m_sliderGroove && shown(w->m_sliderGroove);
+
+    // New text: set it and shrink it to the card's width.
+    auto set = [&](CCLabelBMFont* label, std::string const& value) {
+        auto base = static_cast<CCFloat*>(label->getUserObject("base"_spr));
+        if (!base) {
+            base = CCFloat::create(label->getScale());
+            label->setUserObject("base"_spr, base);
+        }
+        std::string shownText = value.empty() ? " " : value;
+        if (label->getString() == shownText) return;
+        label->setString(shownText.c_str());
+        label->setScale(base->getValue());
+        float width = label->getScaledContentSize().width;
+        if (width > c.textW) label->setScale(base->getValue() * c.textW / width);
+    };
+    set(c.title, title);
+    set(c.artist, artist);
+    set(c.info, downloading ? "" : info);
+    c.info->setColor(error.empty() ? theme::LIGHT1 : ccColor3B {255, 110, 110});
+
+    // Download progress: GD grows its bar sprite's texture rect across the groove.
+    c.track->setVisible(downloading);
+    c.fill->setVisible(downloading);
+    if (downloading && w->m_sliderBar) {
+        float full = std::max(1.f, w->m_sliderGroove->getTextureRect().size.width - 4.f);
+        float ratio = std::clamp(w->m_sliderBar->getTextureRect().size.width / full, 0.f, 1.f);
+        float h = c.fill->getContentSize().height;
+        c.fill->setContentSize({std::max(h, c.barW * ratio), h});
+    }
+
+    // Buttons, in GD's order, only while GD shows the matching one.
+    auto visible = [&](size_t index) -> bool {
+        if (index == c.download) return w->m_downloadBtn && shown(w->m_downloadBtn);
+        if (index == c.cancel) return w->m_cancelDownloadBtn && shown(w->m_cancelDownloadBtn);
+        if (index == c.getInfo) return w->m_getSongInfoBtn && shown(w->m_getSongInfoBtn);
+        if (index == c.jukebox) {
+            auto disc = w->querySelector("fleym.nongd/nong-button");
+            return disc && shown(disc);
+        }
+        if (index == c.more) return w->m_moreBtn && shown(w->m_moreBtn);
+        if (index == c.infoBtn) return w->m_infoBtn && shown(w->m_infoBtn);
+        if (index == c.remove) return w->m_deleteBtn && shown(w->m_deleteBtn);
+        return false;
+    };
+    float x = c.buttonX;
+    for (size_t index : c.buttons) {
+        if (index >= m_wedgeButtons.size()) continue;
+        auto& b = m_wedgeButtons[index];
+        bool on = visible(index);
+        b.node->setVisible(on);
+        if (!on) continue;
+        b.node->setPosition({x, c.buttonY});
+        x += b.node->getContentSize().width + 6 * m_k;
+    }
+}
+
+int SongSelect::getActiveSongID() {
+    if (!m_hasSelection) return 0;
+    return m_entries[m_visible[m_selected]].level->m_songID;
+}
+
+void SongSelect::loadLeaderboard() {
+    if (!m_hasSelection) return;
+    auto const& e = m_entries[m_visible[m_selected]];
+    if (e.official) return;
+    m_board = Board::Loading;
+    m_boardLevel = e.id;
+    m_boardScores = nullptr;
+    refreshDetails();
+    auto glm = GameLevelManager::sharedState();
+    glm->m_leaderboardManagerDelegate = this;
+    glm->getLevelLeaderboard(e.level, LevelLeaderboardType::Global,
+                             e.platformer ? LevelLeaderboardMode::Time : LevelLeaderboardMode::Time);
+}
+
+void SongSelect::loadLeaderboardFinished(CCArray* scores, char const*) {
+    auto glm = GameLevelManager::sharedState();
+    if (glm->m_leaderboardManagerDelegate == this) glm->m_leaderboardManagerDelegate = nullptr;
+    if (m_board != Board::Loading) return;
+    m_board = Board::Loaded;
+    m_boardScores = scores;
+    if (scores && scores->count() > 0) {
+        auto s = static_cast<GJUserScore*>(scores->objectAtIndex(0));
+        log::debug("Leaderboard[0]: rank {} stars {} moons {} coins {}/{} demons {} diamonds {} cp {}",
+                   s->m_playerRank, s->m_stars, s->m_moons, s->m_secretCoins, s->m_userCoins, s->m_demons,
+                   s->m_diamonds, s->m_creatorPoints);
+    }
+    if (m_hasSelection && m_entries[m_visible[m_selected]].id == m_boardLevel) refreshDetails();
+}
+
+void SongSelect::loadLeaderboardFailed(char const*) {
+    auto glm = GameLevelManager::sharedState();
+    if (glm->m_leaderboardManagerDelegate == this) glm->m_leaderboardManagerDelegate = nullptr;
+    if (m_board != Board::Loading) return;
+    m_board = Board::Failed;
+    if (m_hasSelection && m_entries[m_visible[m_selected]].id == m_boardLevel) refreshDetails();
 }
 
 // --- carousel ---
@@ -845,6 +1359,15 @@ void SongSelect::updateCarousel(float dt) {
 void SongSelect::update(float dt) {
     float ms = dt * 1000.f;
     m_enterMs += ms;
+    // GD's mouse dispatcher only feeds its newest delegate, and GD's song widget
+    // (or mods extending it) can register one: take the wheel back now and then.
+    m_wheelClaimMs += ms;
+    if (m_wheelClaimMs > 500) {
+        m_wheelClaimMs = 0;
+        auto dispatcher = CCDirector::get()->getMouseDispatcher();
+        dispatcher->removeDelegate(this);
+        dispatcher->addDelegate(this);
+    }
     updateCarousel(dt);
 
     m_wedgeAlpha.update(dt);
@@ -857,7 +1380,7 @@ void SongSelect::update(float dt) {
 
     auto mouse = geode::cocos::getMousePos();
     auto updateButton = [&](Button& b) {
-        bool hovered = containsWorld(b.node, mouse);
+        bool hovered = hittable(b, mouse);
         if (hovered != b.hovered) {
             b.hovered = hovered;
             b.hover.to(hovered ? 1.f : 0.f, hovered ? 100 : 400, Easing::OutQuint);
@@ -869,6 +1392,9 @@ void SongSelect::update(float dt) {
     };
     for (auto& b : m_tabs) updateButton(b);
     for (auto& b : m_buttons) updateButton(b);
+    for (auto& b : m_wedgeButtons) updateButton(b);
+    for (auto& b : m_folderItems) updateButton(b);
+    updateSongCard();
 }
 
 // --- input ---
@@ -881,10 +1407,22 @@ size_t SongSelect::panelAt(CCPoint world) {
     return SIZE_MAX;
 }
 
+bool SongSelect::hittable(Button const& b, CCPoint world) {
+    for (CCNode* n = b.node; n; n = n->getParent()) {
+        if (!n->isVisible()) return false;
+    }
+    if (b.clip && !b.clip->containsWorldPoint(world)) return false;
+    return containsWorld(b.node, world);
+}
+
 SongSelect::Button* SongSelect::buttonAt(CCPoint world) {
-    for (auto list : {&m_tabs, &m_buttons}) {
+    // The open dropdown sits on top of everything.
+    for (auto& b : m_folderItems) {
+        if (hittable(b, world)) return &b;
+    }
+    for (auto list : {&m_tabs, &m_buttons, &m_wedgeButtons}) {
         for (auto& b : *list) {
-            if (containsWorld(b.node, world)) return &b;
+            if (hittable(b, world)) return &b;
         }
     }
     return nullptr;
@@ -894,15 +1432,35 @@ bool SongSelect::ccTouchBegan(CCTouch* touch, CCEvent*) {
     auto loc = touch->getLocation();
     // Let the search field take its own touches.
     if (m_search && containsWorld(m_search, loc)) return false;
+    if (m_starting) return true;
     m_touchDown = true;
     m_dragging = false;
     m_touchStart = m_touchLast = loc;
     m_pressed = buttonAt(loc);
+    // A tap outside the open folder list closes it.
+    if (m_folderMenu) {
+        bool inMenu = m_pressed && (m_pressed == &m_buttons[m_folderButton]
+            || (m_pressed >= m_folderItems.data() && m_pressed < m_folderItems.data() + m_folderItems.size()));
+        if (!inMenu) {
+            closeFolders();
+            m_pressed = nullptr;
+            m_touchDown = false;
+            return true;
+        }
+    }
+    m_detailsDrag.began(m_details, loc);
     return true;
 }
 
 void SongSelect::ccTouchMoved(CCTouch* touch, CCEvent*) {
     auto loc = touch->getLocation();
+    if (!m_touchDown) return;
+    // Dragging the details scrolls them, and cancels a press on their buttons.
+    if (m_detailsDrag.moved(loc)) {
+        m_pressed = nullptr;
+        m_touchLast = loc;
+        return;
+    }
     bool inCarousel = m_touchStart.x > m_win.width - m_rightW && m_touchStart.y > m_carouselBottom && m_touchStart.y < m_carouselTop;
     if (!m_dragging && inCarousel && !m_pressed && std::abs(loc.y - m_touchStart.y) > 8 * m_k) m_dragging = true;
     if (m_dragging) m_scrollTarget += loc.y - m_touchLast.y;
@@ -912,9 +1470,15 @@ void SongSelect::ccTouchMoved(CCTouch* touch, CCEvent*) {
 void SongSelect::ccTouchEnded(CCTouch* touch, CCEvent*) {
     auto loc = touch->getLocation();
     bool wasDragging = m_dragging;
+    bool wasDown = m_touchDown;
     m_touchDown = false;
     m_dragging = false;
-    if (wasDragging) return;
+    bool scrolledDetails = m_detailsDrag.ended();
+    if (m_refreshPending) refreshDetails();
+    if (!wasDown || wasDragging || scrolledDetails) {
+        m_pressed = nullptr;
+        return;
+    }
 
     if (m_pressed) {
         if (buttonAt(loc) == m_pressed) {
@@ -939,6 +1503,11 @@ void SongSelect::ccTouchEnded(CCTouch* touch, CCEvent*) {
 }
 
 void SongSelect::scrollWheel(float y, float) {
+    // Left side: the level details; right side: the carousel.
+    if (geode::cocos::getMousePos().x < m_win.width - m_rightW) {
+        if (m_details) m_details->scrollWheel(y, 0);
+        return;
+    }
     // Positive = down; one notch moves about one and a half panels.
     float notches = std::clamp(y / 12.f, -3.f, 3.f);
     m_scrollTarget += notches * (m_panelH + m_spacing) * 1.5f;

@@ -3,6 +3,7 @@
 #include "../../levels/LevelLibrary.hpp"
 #include "../core/Easing.hpp"
 #include "../core/RoundedBox.hpp"
+#include "../core/ScrollArea.hpp"
 
 #include <Geode/Geode.hpp>
 #include <Geode/cocos/robtop/mouse_dispatcher/CCMouseDelegate.h>
@@ -18,13 +19,15 @@ class MenuBackground;
 // Play -> classic / platformer: every level of that kind you can play in one list,
 // RobTop's and your saved ones, after osu!'s song select
 // (osu.Game/Screens/Select/SongSelect.cs):
-//   left:   the selected level's title wedge and details
+//   left:   the selected level's title wedge and details (progress, songs via
+//           GD's own song widget, so Jukebox's controls appear too, per-level
+//           options, leaderboard, description)
 //   right:  a curved carousel of level panels, with search and filters on top
 //   bottom: footer with back / random / level page / play
 // The selected level's song previews and its thumbnail becomes the blurred
 // background. Playing a level (or backing out of it) comes back here.
 // (GD's CCLayer is already a CCMouseDelegate.)
-class SongSelect : public cocos2d::CCLayer {
+class SongSelect : public cocos2d::CCLayer, public CustomSongDelegate, public LeaderboardManagerDelegate {
 public:
     static cocos2d::CCScene* scene(levels::Kind kind);
     // The kind last opened (where gameplay and level pages return to).
@@ -47,8 +50,22 @@ public:
     void ccTouchEnded(cocos2d::CCTouch* touch, cocos2d::CCEvent*) override;
     void ccTouchCancelled(cocos2d::CCTouch* touch, cocos2d::CCEvent* e) override { ccTouchEnded(touch, e); }
 
+    // CustomSongDelegate (for the embedded song widget).
+    void songIDChanged(int) override {}
+    int getActiveSongID() override;
+    gd::string getSongFileName() override { return ""; }
+    LevelSettingsObject* getLevelSettings() override { return nullptr; }
+
+    // LeaderboardManagerDelegate.
+    void updateUserScoreFinished() override {}
+    void updateUserScoreFailed() override {}
+    void loadLeaderboardFinished(cocos2d::CCArray* scores, char const* key) override;
+    void loadLeaderboardFailed(char const* key) override;
+
 protected:
-    enum class Group { All, Official, Saved };
+    // Saved first: most players mostly play online levels.
+    enum class Group { Saved, Official, Liked };
+    enum class Board { Hidden, Loading, Loaded, Failed };
 
     struct Panel {
         size_t entry;
@@ -72,6 +89,7 @@ protected:
         Tweened<float> hover {0.f};
         bool hovered = false;
         bool selected = false; // lit tab
+        ScrollArea* clip = nullptr; // inside a scroll area: only hit while visible in it
     };
 
     bool init(levels::Kind kind);
@@ -86,15 +104,25 @@ protected:
     void start();
     void openLevelPage();
     void back();
+    void toggleFolders();
+    void closeFolders();
+    void confirmDeleteUnhearted();
+    void loadLeaderboard();
+    void buildDetails(float top, float bottom);
+    // Mirrors the hidden song widget into the song card.
+    void updateSongCard();
 
     void updateCarousel(float dt);
     Panel& makePanel(size_t entry);
-    void updateWedge();
+    void updateWedge(bool animate = true);
+    // Rebuilds the details for the same level, keeping the scroll position.
+    void refreshDetails();
     void previewSong();
     float itemTop(size_t visibleIndex) const;
     float viewHeight() const;
     size_t panelAt(cocos2d::CCPoint world);
     Button* buttonAt(cocos2d::CCPoint world);
+    bool hittable(Button const& b, cocos2d::CCPoint world);
 
     float m_k = 1;
     cocos2d::CCSize m_win;
@@ -108,7 +136,8 @@ protected:
     std::vector<size_t> m_visible; // filtered + sorted entry indices
     size_t m_selected = 0;         // index into m_visible
     bool m_hasSelection = false;
-    Group m_group = Group::All;
+    Group m_group = Group::Saved;
+    int m_folder = 0;              // 0 = all folders
     levels::Sort m_sort = levels::Sort::Default;
     std::string m_query;
 
@@ -127,12 +156,38 @@ protected:
     cocos2d::CCLabelBMFont* m_sortLabel = nullptr;
     std::vector<Button> m_tabs;
     std::vector<Button> m_buttons; // footer + sort
+    std::vector<Button> m_wedgeButtons; // heart, level options, leaderboard (rebuilt per level)
+    std::vector<Button> m_folderItems;  // the open folder dropdown
     Button* m_pressed = nullptr;
+    size_t m_folderButton = 0;           // index in m_buttons
+    cocos2d::CCLabelBMFont* m_folderLabel = nullptr;
+    cocos2d::CCNode* m_folderMenu = nullptr;
+    ScrollArea* m_details = nullptr;
+    ScrollDragger m_detailsDrag;
+    CustomSongWidget* m_songWidget = nullptr;
+    struct SongCard {
+        cocos2d::CCLabelBMFont* title = nullptr;
+        cocos2d::CCLabelBMFont* artist = nullptr;
+        cocos2d::CCLabelBMFont* info = nullptr;
+        RoundedBox* track = nullptr;
+        RoundedBox* fill = nullptr;
+        float textW = 0, barW = 0;
+        float buttonX = 0, buttonY = 0;
+        std::vector<size_t> buttons; // indices in m_wedgeButtons
+        size_t download = SIZE_MAX, cancel = SIZE_MAX, getInfo = SIZE_MAX, jukebox = SIZE_MAX;
+        size_t more = SIZE_MAX, infoBtn = SIZE_MAX, remove = SIZE_MAX;
+    } m_songCard;
+    Board m_board = Board::Hidden;
+    int m_boardLevel = 0;               // level the leaderboard was loaded for
+    geode::Ref<cocos2d::CCArray> m_boardScores;
+    bool m_starting = false;
+    bool m_refreshPending = false;     // a details refresh waiting for the touch to end
 
     float m_previewDelay = -1;     // debounce before the selected song starts
     std::string m_previewPath;
     int m_backgroundRequest = 0;
     float m_enterMs = 0;
+    float m_wheelClaimMs = 0;
 };
 
 } // namespace lazer

@@ -83,6 +83,7 @@ namespace {
         e.length = level->m_levelLength;
         e.platformer = level->isPlatformer();
         if (e.platformer) e.bestTime = level->m_bestTime;
+        if (!official) e.folder = level->m_levelFolder;
         fillSong(e, level);
         fillCoins(e, level);
         e.search = lower(e.name + " " + e.creator + " " + e.songTitle + " " + e.songArtist);
@@ -113,6 +114,48 @@ std::vector<Entry> all(Kind kind) {
         }
     }
     return entries;
+}
+
+bool favorited(Entry const& entry) {
+    return !entry.official && entry.level->m_levelFavorited;
+}
+
+void setFavorited(Entry const& entry, bool favorited) {
+    if (entry.official) return;
+    // What LevelInfoLayer::onFavorite does: flip the flag, GD saves it with the level.
+    entry.level->m_levelFavorited = favorited;
+}
+
+std::string folderName(int folder) {
+    std::string name = GameLevelManager::sharedState()->getFolderName(folder, false);
+    return name.empty() ? fmt::format("folder {}", folder) : name;
+}
+
+namespace {
+    std::vector<GJGameLevel*> unhearted() {
+        std::vector<GJGameLevel*> result;
+        auto saved = GameLevelManager::sharedState()->getSavedLevels(false, 0);
+        if (!saved) return result;
+        for (auto level : CCArrayExt<GJGameLevel*>(saved)) {
+            if (level && !level->m_levelFavorited && level->m_levelFolder == 0) result.push_back(level);
+        }
+        return result;
+    }
+}
+
+int countUnhearted() {
+    return static_cast<int>(unhearted().size());
+}
+
+int deleteUnhearted() {
+    auto glm = GameLevelManager::sharedState();
+    auto levels = unhearted();
+    for (auto level : levels) {
+        Ref<GJGameLevel> keep = level; // deleteLevel releases GD's reference
+        glm->deleteLevel(level);
+    }
+    log::info("Deleted {} unhearted saved levels", levels.size());
+    return static_cast<int>(levels.size());
 }
 
 ccColor3B difficultyColor(int difficulty) {
