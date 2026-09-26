@@ -30,10 +30,11 @@ class MenuBackground;
 // (GD's CCLayer is already a CCMouseDelegate.)
 class SongSelect : public cocos2d::CCLayer, public CustomSongDelegate, public LeaderboardManagerDelegate {
 public:
+    // From the main menu: the menu's song keeps playing, with its level selected.
     static cocos2d::CCScene* scene(levels::Kind kind);
     // The kind last opened (where gameplay and level pages return to).
     static cocos2d::CCScene* scene();
-    static SongSelect* create(levels::Kind kind);
+    static SongSelect* create(levels::Kind kind, bool fromMenu = false);
 
     // Set while the player came from song select, so leaving gameplay or GD's
     // level page returns here instead of GD's own screens.
@@ -94,7 +95,9 @@ protected:
         ScrollArea* clip = nullptr; // inside a scroll area: only hit while visible in it
     };
 
-    bool init(levels::Kind kind);
+    bool init(levels::Kind kind, bool fromMenu);
+    // Selects a level using the song at `path` (clearing the filters if they hide it).
+    bool selectSong(std::string const& path);
     void buildFilter();
     void buildFooter();
     Button& addButton(std::vector<Button>& list, cocos2d::CCNode* parent, char const* glyph, std::string const& label,
@@ -207,7 +210,8 @@ protected:
     Tweened<float> m_dimTween {0.55f};     // a details refresh waiting for the touch to end
 
     float m_previewDelay = -1;     // debounce before the selected song starts
-    std::string m_previewPath;
+    std::string m_previewPath;     // what's on the music channel
+    bool m_leaving = false;        // back to the menu: the channel is the menu's again
     int m_backgroundRequest = 0;
     float m_enterMs = 0;
     float m_wheelClaimMs = 0;

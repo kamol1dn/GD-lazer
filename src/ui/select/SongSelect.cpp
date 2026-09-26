@@ -1,5 +1,6 @@
 #include "SongSelect.hpp"
 
+#include "../../audio/MusicPlayer.hpp"
 #include "../../audio/Sfx.hpp"
 #include "../../integrations/LevelThumbnails.hpp"
 #include "../core/Text.hpp"
@@ -184,17 +185,19 @@ bool& SongSelect::returnsHere() {
 
 CCScene* SongSelect::scene(levels::Kind kind) {
     auto scene = CCScene::create();
-    scene->addChild(SongSelect::create(kind));
+    scene->addChild(SongSelect::create(kind, true));
     return scene;
 }
 
 CCScene* SongSelect::scene() {
-    return scene(g_lastKind);
+    auto scene = CCScene::create();
+    scene->addChild(SongSelect::create(g_lastKind));
+    return scene;
 }
 
-SongSelect* SongSelect::create(levels::Kind kind) {
+SongSelect* SongSelect::create(levels::Kind kind, bool fromMenu) {
     auto ret = new SongSelect();
-    if (ret->init(kind)) {
+    if (ret->init(kind, fromMenu)) {
         ret->autorelease();
         return ret;
     }
@@ -202,7 +205,7 @@ SongSelect* SongSelect::create(levels::Kind kind) {
     return nullptr;
 }
 
-bool SongSelect::init(levels::Kind kind) {
+bool SongSelect::init(levels::Kind kind, bool fromMenu) {
     if (!CCLayer::init()) return false;
     m_kind = kind;
     g_lastKind = kind;
@@ -253,7 +256,10 @@ bool SongSelect::init(levels::Kind kind) {
     if (m_search && !m_query.empty()) m_search->setString(m_query);
     m_entries = levels::all(m_kind);
     log::info("Song select: {} {} levels", m_entries.size(), m_kind == levels::Kind::Platformer ? "platformer" : "classic");
-    applyFilter();
+    // Coming from the menu, its song carries on and picks the selection (osu!
+    // selects the playing beatmap). Back from a level, the last selection stays.
+    std::string playing = fromMenu ? MusicPlayer::get().handOff() : "";
+    if (playing.empty() || !selectSong(playing)) applyFilter();
     m_scroll = m_scrollTarget;
 
     this->setTouchEnabled(true);
@@ -618,6 +624,37 @@ void SongSelect::select(size_t visibleIndex, bool scroll) {
     });
 }
 
+bool SongSelect::selectSong(std::string const& path) {
+    // Prefer the level last selected here, if it's one with this song.
+    auto& r = remembered();
+    levels::Entry const* found = nullptr;
+    for (auto const& e : m_entries) {
+        if (e.songPath != path) continue;
+        if (!found || (e.id == r.selectedId && e.official == r.selectedOfficial)) found = &e;
+    }
+    if (!found) return false;
+    r.selectedId = found->id;
+    r.selectedOfficial = found->official;
+    m_previewPath = path; // already playing: select() mustn't restart it
+    m_hasSelection = false;
+    applyFilter();
+    if (m_hasSelection && m_entries[m_visible[m_selected]].songPath == path) return true;
+
+    // The filters hide it: show everything in its group instead.
+    m_group = found->official ? Group::Official : Group::Saved;
+    m_folder = 0;
+    m_query.clear();
+    if (m_search) m_search->setString("");
+    r.group = static_cast<int>(m_group);
+    r.folder = 0;
+    r.query.clear();
+    r.selectedId = found->id;
+    r.selectedOfficial = found->official;
+    m_hasSelection = false;
+    applyFilter();
+    return true;
+}
+
 void SongSelect::selectRandom() {
     if (m_visible.size() < 2) return;
     static std::mt19937 rng {std::random_device {}()};
@@ -847,6 +884,21 @@ void SongSelect::openLevelPage() {
 void SongSelect::back() {
     sfx::play(sfx::sound::DEFAULT_SELECT);
     returnsHere() = false;
+
+    // The menu carries on with whatever is playing (osu! keeps the track going).
+    m_leaving = true;
+    m_previewDelay = -1;
+    auto engine = FMODAudioEngine::sharedEngine();
+    std::string playing = engine->getActiveMusic(0);
+    if (!playing.empty() && engine->isMusicPlaying(0)) {
+        auto it = std::find_if(m_entries.begin(), m_entries.end(), [&](auto const& e) { return e.songPath == playing; });
+        if (it != m_entries.end()) {
+            MusicPlayer::Track track {it->official ? 0 : it->level->m_songID, playing, it->songTitle, it->songArtist, {}};
+            // (RobTop's level IDs aren't online IDs: no thumbnails to look up for them.)
+            if (!it->official) track.levels.push_back({it->id, it->name, it->creator});
+            MusicPlayer::get().adopt(std::move(track));
+        }
+    }
     CCDirector::get()->replaceScene(CCTransitionFade::create(0.5f, MenuLayer::scene(false)));
 }
 
@@ -1572,6 +1624,10 @@ void SongSelect::update(float dt) {
     if (m_previewDelay >= 0) {
         m_previewDelay -= ms;
         if (m_previewDelay < 0) previewSong();
+    } else if (!m_leaving && !m_previewPath.empty() && !FMODAudioEngine::sharedEngine()->isMusicPlaying(0)) {
+        // The menu's song (not looped, unlike previews) ran out: loop it like one.
+        m_previewPath.clear();
+        previewSong();
     }
 
     auto mouse = geode::cocos::getMousePos();

@@ -73,6 +73,15 @@ public:
     size_t blockedCount() const { return m_blocked.size(); }
     void unblockAll();
 
+    // Song select takes over the channel with our song still playing (osu! keeps
+    // the track going into song select): returns its path, or "" if nothing of
+    // ours is playing. We stop following the channel until adopt().
+    std::string handOff();
+    // Back from song select: carry on with whatever it left playing as the
+    // current track, without restarting it. `track` describes the song in case
+    // it isn't in the playlist (RobTop's songs, a level saved since).
+    void adopt(Track track);
+
     unsigned positionMs() const;
     unsigned lengthMs() const;
 

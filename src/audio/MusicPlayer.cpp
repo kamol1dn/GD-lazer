@@ -168,6 +168,41 @@ void MusicPlayer::play(size_t index, Direction direction, unsigned startMs, floa
     notify(direction);
 }
 
+std::string MusicPlayer::handOff() {
+    auto track = current();
+    if (!m_active || m_paused || !track || engine()->getActiveMusic(CHANNEL) != track->path) return "";
+    m_active = false;
+    log::info("Handing \"{}\" to song select", track->title);
+    return track->path;
+}
+
+void MusicPlayer::adopt(Track track) {
+    if (!enabled() || m_introHold) return;
+    auto e = engine();
+    if (!e->isMusicPlaying(CHANNEL) || e->getActiveMusic(CHANNEL) != track.path) return;
+    if (m_tracks.empty()) rebuildPlaylist();
+
+    auto it = std::find_if(m_tracks.begin(), m_tracks.end(), [&](Track const& t) { return t.path == track.path; });
+    size_t index;
+    if (it != m_tracks.end()) {
+        index = it - m_tracks.begin();
+    } else {
+        // Not one of ours: slot it in after the current track, so "next" carries on from there.
+        index = std::min(m_index + 1, m_tracks.size());
+        m_tracks.insert(m_tracks.begin() + index, std::move(track));
+        m_history.clear();
+    }
+    if (index != m_index && m_index < m_tracks.size()) m_history.push_back(m_index);
+
+    m_index = index;
+    m_active = true;
+    m_paused = false;
+    m_sinceStart = END_GRACE_S;
+    m_savedPosition = e->getMusicTimeMS(CHANNEL);
+    log::info("Carrying on with \"{}\" from song select", m_tracks[index].title);
+    notify(Direction::None);
+}
+
 void MusicPlayer::togglePause() {
     if (!m_active) {
         // Something else took the channel (a song preview...): take it back.
@@ -293,11 +328,13 @@ void MusicPlayer::update(float dt) {
     m_sinceStart += dt;
     unsigned pos = engine()->getMusicTimeMS(CHANNEL);
     unsigned len = engine()->getMusicLengthMS(CHANNEL);
+    // Song select's previews loop: one it handed back wraps round instead of ending.
+    bool wrapped = pos + 1000 < m_savedPosition;
     if (pos > 0) m_savedPosition = pos;
 
     if (m_sinceStart < END_GRACE_S) return;
     bool playing = engine()->isMusicPlaying(CHANNEL);
-    bool ended = !playing || (len > 0 && pos + 30 >= len);
+    bool ended = !playing || wrapped || (len > 0 && pos + 30 >= len);
     if (ended) {
         log::info("Track ended (playing={}, pos={}ms, len={}ms)", playing, pos, len);
         next();
