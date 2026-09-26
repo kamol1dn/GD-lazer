@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.2
+
+- Fixed: on Android, updates from the in-game updater could keep running the old version (the version number changed but nothing else did). If you're on Android and don't have the new logo, reinstall this version once by hand; later updates apply properly
+
 ## v0.4.1
 
 - Starting a level plays osu!'s loader: song select fades away, the level's card scales in over its background, then the level starts (back cancels)
