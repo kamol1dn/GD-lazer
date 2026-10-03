@@ -51,6 +51,24 @@ class $modify(LazerProfilePage, ProfilePage) {
     }
 #endif
 
+    // GD opens the comment history inside the page (the popup's scene is the
+    // page), and the page isn't drawn here: the popup moves over the scene,
+    // above the overlay, where GD's other popups are.
+    void onCommentHistory(CCObject* sender) {
+        ProfilePage::onCommentHistory(sender);
+        if (!hidden()) return;
+        auto scene = CCDirector::get()->getRunningScene();
+        if (!scene) return;
+        std::vector<Ref<CCNode>> popups;
+        for (auto child : CCArrayExt<CCNode*>(this->getChildren())) {
+            if (typeinfo_cast<FLAlertLayer*>(child)) popups.push_back(child);
+        }
+        for (auto& popup : popups) {
+            popup->removeFromParentAndCleanup(false);
+            scene->addChild(popup, 105);
+        }
+    }
+
     void loadCommentsFinished(CCArray* comments, char const* key) {
         ProfilePage::loadCommentsFinished(comments, key);
         m_fields->comments = comments;
@@ -175,7 +193,6 @@ void ProfileOverlay::present(ProfilePage* page) {
 
 bool ProfileOverlay::init(ProfilePage* page, theme::Scheme scheme) {
     if (!WaveOverlay::init(0, scheme, icon::USER, "player info", "stats, icons and posts", 72.f)) return false;
-    m_page = page;
     m_pad = HORIZONTAL_PADDING * m_k;
 
     adopt(page);
