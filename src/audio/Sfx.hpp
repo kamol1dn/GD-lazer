@@ -1,5 +1,7 @@
 #pragma once
 
+namespace FMOD { class Channel; }
+
 namespace lazer::sfx {
 
 // UI sounds, played on their own channel group: the "UI sound volume" setting
@@ -54,8 +56,12 @@ namespace cue {
     inline constexpr char const* SEEYA = "intro-seeya";
 }
 
-// Plays a cue (no debounce, no pitch variation) at the UI sound volume.
-void playCue(char const* name);
+// Loads a sound now, so its first play doesn't stall the frame decoding it.
+void preload(char const* name);
+
+// Plays a cue (no debounce, no pitch variation) at the UI sound volume, and
+// gives back its channel (null when it didn't play), to follow its position.
+FMOD::Channel* playCue(char const* name);
 
 // Plays `name` at `frequency` (speed and pitch, like osu!'s channel Frequency),
 // randomised by +-pitchVariation. Repeats of the same sound within 20 ms are

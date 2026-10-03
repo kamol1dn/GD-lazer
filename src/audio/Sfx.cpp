@@ -68,15 +68,16 @@ namespace {
         return sound;
     }
 
-    void playOnGroup(char const* name, float frequency, float volume) {
+    FMOD::Channel* playOnGroup(char const* name, float frequency, float volume) {
         auto sound = soundFor(name);
         auto target = group();
-        if (!sound || !target) return;
+        if (!sound || !target) return nullptr;
         FMOD::Channel* channel = nullptr;
-        if (FMODAudioEngine::sharedEngine()->m_system->playSound(sound, target, true, &channel) != FMOD_OK || !channel) return;
+        if (FMODAudioEngine::sharedEngine()->m_system->playSound(sound, target, true, &channel) != FMOD_OK || !channel) return nullptr;
         channel->setVolume(volume);
         channel->setPitch(frequency);
         channel->setPaused(false);
+        return channel;
     }
 
     float uiVolume() {
@@ -97,9 +98,14 @@ void play(char const* name, float pitchVariation, float frequency) {
     playOnGroup(name, frequency, volume);
 }
 
-void playCue(char const* name) {
+void preload(char const* name) {
+    soundFor(name);
+}
+
+FMOD::Channel* playCue(char const* name) {
     float volume = uiVolume();
-    if (volume > 0.f) playOnGroup(name, 1.f, volume);
+    if (volume <= 0.f) return nullptr;
+    return playOnGroup(name, 1.f, volume);
 }
 
 void hover(char const* name) {

@@ -4,6 +4,7 @@
 #include "../core/PlayerPalette.hpp"
 
 #include <Geode/Geode.hpp>
+#include <Geode/fmod/fmod.hpp>
 #include <functional>
 #include <string>
 #include <vector>
@@ -63,6 +64,7 @@ protected:
     float m_timeMs = 0;
     float m_lastMs = -1;
     bool m_started = false;
+    FMOD::Channel* m_cue = nullptr; // the theme, once it plays: the timeline follows it
     bool m_revealed = false;
     float m_revealMs = 0;
     PlayerPalette m_palette;

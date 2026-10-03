@@ -98,6 +98,9 @@ IntroSequence* IntroSequence::create(float logoRadius, std::function<void()> onR
 bool IntroSequence::init(float logoRadius, std::function<void()> onReveal) {
     if (!CCLayer::init()) return false;
     m_onReveal = std::move(onReveal);
+    // Decoded now, during the loading screen's fade: decoding it on the first
+    // frame instead would put the timeline that far ahead of the theme.
+    sfx::preload(sfx::cue::INTRO);
     m_win = CCDirector::get()->getWinSize();
     m_k = m_win.height / 768.f;
     m_palette = PlayerPalette::current();
@@ -304,12 +307,24 @@ void IntroSequence::update(float dt) {
         }
         m_started = true;
         dt = 0;
-        sfx::playCue(sfx::cue::INTRO);
+        m_cue = sfx::playCue(sfx::cue::INTRO);
     }
 
     float ms = dt * 1000.f;
     m_lastMs = m_timeMs;
     m_timeMs += ms;
+    // The theme is the clock: a long frame (the menu's textures loading, the
+    // game losing focus) would otherwise leave the timeline ahead of or behind
+    // what's heard. Small differences are its block granularity; left alone.
+    if (m_cue) {
+        unsigned int position = 0;
+        bool playing = false;
+        if (m_cue->isPlaying(&playing) != FMOD_OK || !playing) {
+            m_cue = nullptr;
+        } else if (m_cue->getPosition(&position, FMOD_TIMEUNIT_MS) == FMOD_OK && std::abs(static_cast<float>(position) - m_timeMs) > 60.f) {
+            m_timeMs = static_cast<float>(position);
+        }
+    }
     auto crossed = [this](float t) { return m_lastMs < t && m_timeMs >= t; };
 
     if (m_revealed) {

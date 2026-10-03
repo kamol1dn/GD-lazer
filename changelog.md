@@ -6,6 +6,7 @@
 - Fixed: backing out of a level page reached from a creator's profile (opened from song select's level page) jumped back to song select instead of the creator's levels (thanks airalics for the report)
 - Fixed: a profile's "comment history" button did nothing (thanks airalics for the report)
 - Fixed: the level page's creator button opened a player that couldn't load when GD's own creator button wasn't available: it looked the profile up by user ID instead of account ID
+- The intro stays in time with its theme: the theme is loaded before the intro starts, and the timeline follows the audio's position through long frames (thanks airalics for the report)
 
 ## v0.6.1
 
