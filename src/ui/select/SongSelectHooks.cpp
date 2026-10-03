@@ -19,6 +19,15 @@ class $modify(SongSelectReturn, GameManager) {
 };
 
 class $modify(SongSelectLevelPage, LevelInfoLayer) {
+    // Only the level page song select opened returns to it. One reached from
+    // there (a profile's levels, opened from the page's creator) is a step
+    // away: its back is GD's, and so is leaving a level played from it.
+    bool init(GJGameLevel* level, bool challenge) {
+        if (lazer::SongSelect::openingLevelPage()) lazer::SongSelect::openingLevelPage() = false;
+        else lazer::SongSelect::returnsHere() = false;
+        return LevelInfoLayer::init(level, challenge);
+    }
+
     void onBack(CCObject* sender) {
         if (lazer::SongSelect::returnsHere() && Mod::get()->getSettingValue<bool>("enabled")) {
             CCDirector::get()->replaceScene(CCTransitionFade::create(0.5f, lazer::SongSelect::scene()));

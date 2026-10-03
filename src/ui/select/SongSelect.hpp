@@ -53,6 +53,10 @@ public:
     // Set while the player came from song select, so leaving gameplay or GD's
     // level page returns here instead of GD's own screens.
     static bool& returnsHere();
+    // Set just before song select opens GD's level page: the next one built is
+    // it. Any other level page (one opened from a profile's levels, say) means
+    // the player went elsewhere, and its back is GD's (see SongSelectHooks.cpp).
+    static bool& openingLevelPage();
     // Set while the player went from song select to GD's online screens: going
     // back to GD's creator hub from them returns here (see CreatorHub.cpp).
     static bool& browsingOnline();

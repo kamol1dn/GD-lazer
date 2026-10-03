@@ -30,6 +30,11 @@ bool& SongSelect::returnsHere() {
     return value;
 }
 
+bool& SongSelect::openingLevelPage() {
+    static bool value = false;
+    return value;
+}
+
 bool& SongSelect::browsingOnline() {
     static bool value = false;
     return value;

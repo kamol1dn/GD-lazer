@@ -3,6 +3,7 @@
 ## v0.6.2
 
 - Fixed: tapping the search box while a level was loading from song select focused it through the loader (thanks airalics for the report)
+- Fixed: backing out of a level page reached from a creator's profile (opened from song select's level page) jumped back to song select instead of the creator's levels (thanks airalics for the report)
 
 ## v0.6.1
 

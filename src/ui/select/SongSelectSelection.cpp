@@ -181,6 +181,7 @@ void SongSelect::openLevelPage() {
     sfx::play(sfx::sound::DEFAULT_SELECT);
     closeMenu();
     returnsHere() = true;
+    openingLevelPage() = true;
     CCDirector::get()->replaceScene(CCTransitionFade::create(0.5f, LevelInfoLayer::scene(e.level, false)));
 }
 
