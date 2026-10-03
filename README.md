@@ -139,7 +139,7 @@ tools/                icon font generator, Android install script
 ## Credits
 
 - UI sounds from [osu-resources](https://github.com/ppy/osu-resources) by ppy Pty Ltd, [CC-BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/), converted to Ogg Vorbis. The intro uses the opening of osu!'s "triangles" theme by cYsmix and the outro osu!'s "see you next time" line, from the same repository. This is why the mod must stay free.
-- The macOS port, its blur optimisation and the updater's checks are [souply](https://github.com/bradysonshine115-dev)'s work.
+- Bug fixes, the macOS port, and additional features by [souply](https://github.com/souplyy).
 - Motion and layout adapted from [osu!](https://github.com/ppy/osu) and [osu-framework](https://github.com/ppy/osu-framework) (MIT).
 - Font: [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL Open Font License).
 - Icons: [Font Awesome Free](https://fontawesome.com/) (solid; icons CC BY 4.0, font SIL OFL).

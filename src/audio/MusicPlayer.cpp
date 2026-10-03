@@ -145,12 +145,16 @@ void MusicPlayer::enterRadio() {
     m_active = false;
     m_paused = false;
     m_radioPoll = 0;
+    ventilla::setPaused(false);
     bool changed = refreshRadioTrack();
     if (!was || changed) notify(Direction::None);
 }
 
 void MusicPlayer::leaveRadio() {
     log::info("Menu music: back to the songs");
+    // Ventilla streams on a separate FMOD channel; replacing GD's music
+    // alone cannot silence it. Leave its level/pause settings unchanged.
+    ventilla::setPaused(true);
     m_radio = false;
     if (m_tracks.empty()) rebuildPlaylist();
     if (m_tracks.empty()) {
@@ -442,6 +446,9 @@ void MusicPlayer::update(float dt) {
         if (refreshRadioTrack()) notify(Direction::None);
         return;
     }
+    // A stream connecting after deselection still needs silencing. Limit this
+    // to our menu playback so Ventilla's own gameplay options remain its own.
+    if (m_active && !radioWanted()) ventilla::setPaused(true);
     if (!m_active) return;
     auto track = current();
     if (!track) {

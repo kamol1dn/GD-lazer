@@ -97,6 +97,9 @@ IntroSequence* IntroSequence::create(float logoRadius, std::function<void()> onR
 
 bool IntroSequence::init(float logoRadius, std::function<void()> onReveal) {
     if (!CCLayer::init()) return false;
+    // Decode the first-use sample before scheduled animation updates. Loading
+    // it in the first update makes the next dt include time before audio began.
+    sfx::preloadCue(sfx::cue::INTRO);
     m_onReveal = std::move(onReveal);
     m_win = CCDirector::get()->getWinSize();
     m_k = m_win.height / 768.f;

@@ -3,6 +3,9 @@
 #include "../../audio/MusicPlayer.hpp"
 #include "../../audio/Sfx.hpp"
 #include "../core/Quips.hpp"
+#include "../core/Theme.hpp"
+#include "../overlays/OfficialLevelPage.hpp"
+#include "../overlays/SettingsRows.hpp"
 #include "../menu/MenuBackground.hpp"
 
 #include <algorithm>
@@ -173,11 +176,21 @@ void SongSelect::openLevelPage() {
         CCDirector::get()->pushScene(CCTransitionFade::create(0.5f, LevelListLayer::scene(pack->list)));
         return;
     }
-    // RobTop's levels have no level page: straight into the level. A pack opens.
-    if (e.official || e.packHeader || !e.level) {
+    // Official levels are local GD levels, not online IDs. Show their saved
+    // stats without invoking Play or fetching an unrelated online level.
+    if (e.official && e.level) {
+        sfx::play(sfx::sound::DEFAULT_SELECT);
+        closeMenu();
+        Ref<SongSelect> owner = this;
+        showOfficialLevelPage(e, [owner] { owner->start(); });
+        return;
+    }
+    // Pack headers expand their list; unavailable entries cannot open a page.
+    if (e.packHeader) {
         start();
         return;
     }
+    if (!e.level) return;
     sfx::play(sfx::sound::DEFAULT_SELECT);
     closeMenu();
     returnsHere() = true;

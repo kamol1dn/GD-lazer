@@ -10,7 +10,6 @@
 
 #include <Geode/Geode.hpp>
 #include <Geode/modify/FLAlertLayer.hpp>
-#include <Geode/modify/TextArea.hpp>
 
 #ifdef GEODE_IS_WINDOWS
 #include <Windows.h>
@@ -19,34 +18,6 @@
 #endif
 
 using namespace geode::prelude;
-
-// TextArea keeps no copy of its text: remember it, so a restyled one can be
-// rebuilt in another font.
-class $modify(LazerTextArea, TextArea) {
-    struct Fields {
-        std::string text;
-        bool known = false;
-    };
-
-    void setString(gd::string text) {
-        m_fields->text = text;
-        m_fields->known = true;
-        TextArea::setString(text);
-        // Restyled: the new lines are in our distance-field font too.
-        if (std::string_view(m_fontFile).ends_with("-sdf.fnt") && m_label) {
-            // GD aligns each line by its unscaled width (right for GD's fonts
-            // at scale 1): with our scale the lines drift off centre.
-            for (auto line : CCArrayExt<CCNode*>(m_label->getChildren())) {
-                line->setPositionX(line->getPositionX() * line->getScaleX());
-            }
-            std::function<void(CCNode*)> apply = [&](CCNode* node) {
-                if (auto label = typeinfo_cast<CCLabelBMFont*>(node)) lazer::useHaloShader(label);
-                else for (auto child : CCArrayExt<CCNode*>(node->getChildren())) apply(child);
-            };
-            apply(m_label);
-        }
-    }
-};
 
 namespace lazer {
 
@@ -89,28 +60,6 @@ namespace {
         if (endsWith(fnt, "goldFont.fnt")) return sdfFont(Weight::Bold);
         if (endsWith(fnt, "chatFont.fnt")) return sdfFont(Weight::Regular);
         return nullptr;
-    }
-
-    float commonHeight(char const* fnt) {
-        auto config = FNTConfigLoadFile(fnt);
-        return config ? config->m_nCommonHeight : 0;
-    }
-
-    // Multi-line text (alert bodies, level descriptions, chat) lays out its lines
-    // with its font's metrics, and colour tags colour single letters: swapping the
-    // line labels' font throws both off. GD rebuilds it in Outfit instead.
-    void restyleTextArea(TextArea* area) {
-        auto fields = static_cast<LazerTextArea*>(area)->m_fields.self();
-        if (!fields->known) return;
-        std::string old = area->m_fontFile;
-        auto replacement = replacementFor(old);
-        if (!replacement) return;
-        float oldHeight = commonHeight(old.c_str());
-        float newHeight = commonHeight(replacement);
-        if (oldHeight <= 0 || newHeight <= 0) return;
-        area->m_fontFile = replacement;
-        area->m_scale *= oldHeight / newHeight;
-        area->setString(fields->text);
     }
 
     // Swap GD's bitmap fonts for Outfit, keeping the same line height.
@@ -181,7 +130,7 @@ namespace {
         }
     }
 
-    void collect(CCNode* node, std::vector<CCNode*>& out) {
+    void collect(CCNode* node, std::vector<Ref<CCNode>>& out) {
         out.push_back(node);
         for (auto child : CCArrayExt<CCNode*>(node->getChildren())) collect(child, out);
     }
@@ -202,19 +151,25 @@ namespace {
         }
         if (panel) replaceWithBox(panel, theme::BACKGROUND4, 10.f, true);
 
-        // Text areas first: rebuilding one frees its old line labels.
-        std::vector<CCNode*> nodes;
+        // Native text areas and inputs depend on GD's font metrics for line
+        // alignment, wrapping and caret placement. Keep those fonts intact.
+        // setFntFile rebuilds letter sprites. Retain this snapshot so later
+        // entries cannot become dangling pointers while earlier labels change.
+        std::vector<Ref<CCNode>> nodes;
         collect(root, nodes);
-        for (auto node : nodes) {
-            if (auto area = typeinfo_cast<TextArea*>(node); area && node->isVisible()) restyleTextArea(area);
-        }
-        nodes.clear();
-        collect(root, nodes);
-        for (auto node : nodes) {
+        for (auto const& retained : nodes) {
+            auto node = retained.data();
+            bool attached = node == root;
+            for (auto parent = node->getParent(); parent; parent = parent->getParent()) {
+                if (parent == root) { attached = true; break; }
+            }
+            if (!attached) continue;
             if (!node->isVisible() || node == panel) continue;
             bool inInput = hasAncestor(node, root, [](CCNode* n) { return typeinfo_cast<CCTextInputNode*>(n); });
-            // Done above (or left alone when its text isn't known).
+            // Preserve the entire native multiline layout, including colour tags.
             if (hasAncestor(node, root, [](CCNode* n) { return typeinfo_cast<TextArea*>(n) || typeinfo_cast<MultilineBitmapFont*>(n); })) continue;
+
+            if (inInput) continue;
 
             if (auto button = typeinfo_cast<ButtonSprite*>(node)) {
                 restyleButton(button);

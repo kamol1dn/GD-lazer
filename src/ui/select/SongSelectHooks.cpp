@@ -19,8 +19,24 @@ class $modify(SongSelectReturn, GameManager) {
 };
 
 class $modify(SongSelectLevelPage, LevelInfoLayer) {
+    struct Fields {
+        bool returnToSongSelect = false;
+    };
+
+    bool init(GJGameLevel* level, bool challenge) {
+        // Consume this navigation intent once. A page opened later from a
+        // creator profile belongs to that profile, not to the original page.
+        bool fromSongSelect = lazer::SongSelect::returnsHere();
+        lazer::SongSelect::returnsHere() = false;
+        if (!LevelInfoLayer::init(level, challenge)) {
+            lazer::SongSelect::returnsHere() = fromSongSelect;
+            return false;
+        }
+        m_fields->returnToSongSelect = fromSongSelect;
+        return true;
+    }
     void onBack(CCObject* sender) {
-        if (lazer::SongSelect::returnsHere() && Mod::get()->getSettingValue<bool>("enabled")) {
+        if (m_fields->returnToSongSelect && Mod::get()->getSettingValue<bool>("enabled")) {
             CCDirector::get()->replaceScene(CCTransitionFade::create(0.5f, lazer::SongSelect::scene()));
             return;
         }
@@ -31,7 +47,7 @@ class $modify(SongSelectLevelPage, LevelInfoLayer) {
     // On Android, keyBackClicked is just onBack(nullptr), which is hooked above;
     // hooking a function that small spills the patch into the next one.
     void keyBackClicked() {
-        if (lazer::SongSelect::returnsHere() && Mod::get()->getSettingValue<bool>("enabled")) {
+        if (m_fields->returnToSongSelect && Mod::get()->getSettingValue<bool>("enabled")) {
             this->onBack(nullptr);
             return;
         }

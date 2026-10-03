@@ -75,6 +75,7 @@ SongSelect* SongSelect::create(levels::Kind kind, bool fromMenu) {
 
 bool SongSelect::init(levels::Kind kind, bool fromMenu) {
     if (!CCLayer::init()) return false;
+    returnsHere() = false; // only subsequent direct navigation should return here
     m_kind = kind;
     g_lastKind = kind;
     browsingOnline() = false;
@@ -186,6 +187,7 @@ bool SongSelect::init(levels::Kind kind, bool fromMenu) {
 
 void SongSelect::onEnter() {
     CCLayer::onEnter();
+    if (m_pageLaunch) return;
     CCDirector::get()->getMouseDispatcher()->addDelegate(this);
     // Back from a screen pushed over this one (a list's page): the results
     // speak to this again, and a page that page's request cut off is asked for again.
@@ -196,6 +198,10 @@ void SongSelect::onEnter() {
 }
 
 void SongSelect::onExit() {
+    if (m_pageLaunch) {
+        CCLayer::onExit();
+        return;
+    }
     CCDirector::get()->getMouseDispatcher()->removeDelegate(this);
     if (m_kind == levels::Kind::MapPacks) packs::setListener(nullptr);
     if (onlineMode()) browse::setListener(nullptr);
@@ -208,7 +214,7 @@ void SongSelect::onExit() {
 }
 
 void SongSelect::registerWithTouchDispatcher() {
-    CCDirector::get()->getTouchDispatcher()->addTargetedDelegate(this, 0, true);
+    CCDirector::get()->getTouchDispatcher()->addTargetedDelegate(this, m_pageLaunch ? -500 : 0, true);
 }
 
 // --- top right: search, groups, sort ---

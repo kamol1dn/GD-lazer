@@ -56,6 +56,8 @@ namespace cue {
 
 // Plays a cue (no debounce, no pitch variation) at the UI sound volume.
 void playCue(char const* name);
+// Decode/cache a cue before its animation clock starts; does not play it.
+void preloadCue(char const* name);
 
 // Plays `name` at `frequency` (speed and pitch, like osu!'s channel Frequency),
 // randomised by +-pitchVariation. Repeats of the same sound within 20 ms are

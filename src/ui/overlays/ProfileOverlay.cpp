@@ -1,4 +1,5 @@
 #include "ProfileOverlay.hpp"
+#include "CommentsOverlay.hpp"
 
 #include "../../audio/Sfx.hpp"
 #include "../core/Quips.hpp"
@@ -73,6 +74,17 @@ namespace {
     constexpr ccColor4B DANGER {204, 51, 85, 255};
 
     LazerProfilePage* fields(ProfilePage* page) { return static_cast<LazerProfilePage*>(page); }
+
+    bool popupAbove(ProfileOverlay* overlay) {
+        auto parent = overlay->getParent();
+        if (!parent) return false;
+        for (auto child : CCArrayExt<CCNode*>(parent->getChildren())) {
+            if (child->isVisible() && !child->getUserObject("hidden"_spr)
+                && child->getZOrder() > overlay->getZOrder()
+                && (typeinfo_cast<FLAlertLayer*>(child) || typeinfo_cast<WaveOverlay*>(child))) return true;
+        }
+        return false;
+    }
 
     bool nodeContains(CCNode* node, CCPoint world) {
         auto local = node->convertToNodeSpace(world);
@@ -175,7 +187,6 @@ void ProfileOverlay::present(ProfilePage* page) {
 
 bool ProfileOverlay::init(ProfilePage* page, theme::Scheme scheme) {
     if (!WaveOverlay::init(0, scheme, icon::USER, "player info", "stats, icons and posts", 72.f)) return false;
-    m_page = page;
     m_pad = HORIZONTAL_PADDING * m_k;
 
     adopt(page);
@@ -215,6 +226,7 @@ void ProfileOverlay::onExit() {
 }
 
 void ProfileOverlay::keyBackClicked() {
+    if (popupAbove(this)) return;
     close();
 }
 
@@ -440,7 +452,10 @@ float ProfileOverlay::buildActions(float y) {
     }
     pill(icon::LAYERS, "levels", run(&ProfilePage::onMyLevels), normal);
     pill(icon::LIST, "lists", run(&ProfilePage::onMyLists), normal);
-    pill(icon::CLOCK, "comment history", run(&ProfilePage::onCommentHistory), normal);
+    pill(icon::CLOCK, "comment history", [this] {
+        if (!m_page || !m_page->m_score) return;
+        CommentsOverlay::presentHistory(m_page->m_score);
+    }, normal);
     pill(icon::COPY, "copy name", run(&ProfilePage::onCopyName), normal);
     pill(icon::ROTATE, "refresh", run(&ProfilePage::onUpdate), normal);
     if (!page->m_ownProfile) pill(icon::BAN, "block", run(&ProfilePage::onBlockUser), DANGER);
@@ -736,7 +751,7 @@ void ProfileOverlay::onUpdate(float dt) {
     }
 
     auto mouse = geode::cocos::getMousePos();
-    bool interactive = isOpen() && !m_drag.dragging() && m_scroll->containsWorldPoint(mouse);
+    bool interactive = isOpen() && !popupAbove(this) && !m_drag.dragging() && m_scroll->containsWorldPoint(mouse);
     for (auto& pill : m_pills) {
         // Pills without an action (a post you already voted on) are just labels.
         bool hovered = interactive && pill.action && nodeContains(pill.node, mouse);
@@ -747,6 +762,7 @@ void ProfileOverlay::onUpdate(float dt) {
 }
 
 bool ProfileOverlay::ccTouchBegan(CCTouch* touch, CCEvent* e) {
+    if (popupAbove(this)) return false;
     if (!WaveOverlay::ccTouchBegan(touch, e)) return false;
     auto loc = touch->getLocation();
     m_pressed = nullptr;

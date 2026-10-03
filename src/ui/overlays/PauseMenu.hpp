@@ -3,6 +3,7 @@
 #include "../core/Easing.hpp"
 
 #include <Geode/cocos/include/cocos2d.h>
+#include <Geode/utils/cocos.hpp>
 #include <vector>
 
 class PauseLayer;
@@ -49,6 +50,7 @@ protected:
     SliderRow* sliderAt(cocos2d::CCPoint world) const;
 
     PauseLayer* m_layer = nullptr;
+    std::vector<geode::Ref<cocos2d::CCNode>> m_vanillaNodes;
     float m_k = 1;
     cocos2d::CCNode* m_titleBlock = nullptr;
     cocos2d::CCNode* m_barsBlock = nullptr;   // normal / practice progress (classic levels)

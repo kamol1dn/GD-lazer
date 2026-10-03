@@ -67,28 +67,42 @@ bool CommentsOverlay::present(GJGameLevel* level, InfoLayer* gdLayer) {
     return true;
 }
 
-bool CommentsOverlay::init(GJGameLevel* level) {
-    std::string name = level->m_levelName;
+bool CommentsOverlay::presentHistory(GJUserScore* player) {
+    auto scene = CCDirector::get()->getRunningScene();
+    if (!scene || !player || player->m_userID <= 0) return false;
+    auto overlay = new CommentsOverlay();
+    if (!overlay->init(nullptr, player)) { delete overlay; return false; }
+    overlay->autorelease();
+    scene->addChild(overlay, 101);
+    overlay->open();
+    return true;
+}
+
+bool CommentsOverlay::init(GJGameLevel* level, GJUserScore* player) {
+    m_history = player != nullptr;
+    m_historyPlayer = player;
+    std::string name = m_history ? std::string(player->m_userName) : std::string(level->m_levelName);
     if (name.size() > 30) name = name.substr(0, 28) + "...";
-    std::string creator = level->m_creatorName;
+    std::string creator = m_history ? "" : std::string(level->m_creatorName);
     if (creator.empty()) creator = "unknown";
-    if (!WaveOverlay::init(0, SCHEME, icon::COMMENTS, name, "level by " + creator, 72.f)) return false;
+    if (!WaveOverlay::init(0, SCHEME, icon::COMMENTS, m_history ? "comment history" : name,
+        m_history ? "level comments by " + name : "level by " + creator, 72.f)) return false;
     m_level = level;
-    m_levelID = level->m_levelID.value();
+    m_levelID = m_history ? player->m_userID : level->m_levelID.value();
     m_pad = HORIZONTAL_PADDING * m_k;
     m_comments = CCArray::create();
     // GD attaches your best percent to a comment unless you turn that off;
     // platformers have no percent.
-    m_includePercent = !level->isPlatformer() && level->m_normalPercent.value() > 0;
+    m_includePercent = !m_history && !level->isPlatformer() && level->m_normalPercent.value() > 0;
     m_wasLoggedIn = loggedIn();
 
     m_scroll = ScrollArea::create(bodySize());
     body()->addChild(m_scroll);
 
     // The top part is built once; the comments under it are rebuilt as they load.
-    float y = buildInfo(0);
+    float y = m_history ? 0 : buildInfo(0);
     y = buildCounter(y);
-    y = buildEditor(y);
+    if (!m_history) y = buildEditor(y);
     y = buildSortHeader(y);
     m_listTop = y;
     m_list = CCNode::create();

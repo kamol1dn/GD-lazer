@@ -12,6 +12,10 @@ using namespace geode::prelude;
 namespace lazer {
 
 void SongSelect::update(float dt) {
+    if (m_pageLaunch) {
+        updateLoader(dt);
+        return;
+    }
     float ms = dt * 1000.f;
     m_enterMs += ms;
     // GD's mouse dispatcher only feeds its newest delegate, and GD's song widget
@@ -23,11 +27,12 @@ void SongSelect::update(float dt) {
         dispatcher->removeDelegate(this);
         dispatcher->addDelegate(this);
     }
-    // An overlay (the comments page) covers everything: the search box mustn't
-    // take taps through it, and nothing here hovers.
-    if (m_search && m_searchEnabled == g_overlayOpen) {
-        m_searchEnabled = !g_overlayOpen;
-        m_search->setEnabled(m_searchEnabled);
+    // Covered fields must not receive their own touches ahead of this layer.
+    bool inputsEnabled = !g_overlayOpen && !m_starting;
+    if (m_searchEnabled != inputsEnabled) {
+        m_searchEnabled = inputsEnabled;
+        if (m_search) m_search->setEnabled(inputsEnabled);
+        if (m_pageInput) m_pageInput->setEnabled(inputsEnabled);
     }
     // Playing: only the loader animates; song select is frozen and fading.
     if (m_starting) {
@@ -110,13 +115,13 @@ SongSelect::Button* SongSelect::buttonAt(CCPoint world) {
 }
 
 bool SongSelect::ccTouchBegan(CCTouch* touch, CCEvent*) {
+    if (m_pageLaunch || m_starting) return true;
     auto loc = touch->getLocation();
     // An overlay is open over song select: its own text box may want the touch.
     if (g_overlayOpen) return false;
     // Let the search field (and the pager's box) take their own touches.
     if (m_search && containsWorld(m_search, loc)) return false;
     if (m_pageInput && containsWorld(m_pageInput, loc)) return false;
-    if (m_starting) return true;
     m_touchDown = true;
     m_dragging = false;
     m_touchStart = m_touchLast = loc;

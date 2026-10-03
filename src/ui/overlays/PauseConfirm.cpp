@@ -5,6 +5,7 @@
 #include "../core/Text.hpp"
 #include "Dialog.hpp"
 #include "PauseMenu.hpp"
+#include "GameplayButtons.hpp"
 
 #include <Geode/Geode.hpp>
 #include <Geode/modify/PauseLayer.hpp>
@@ -25,6 +26,9 @@ class $modify(LazerPauseLayer, PauseLayer) {
         // Straight after GD's own setup, before other mods add theirs: only
         // GD's nodes get hidden, and mods' buttons are gathered a frame later.
         (void)self.setHookPriorityPost("PauseLayer::customSetup", Priority::VeryEarlyPost);
+        // Hide Pause Menu interprets our hidden vanilla background as a
+        // hidden pause screen and consumes tryQuit to reveal it instead.
+        (void)self.setHookPriorityPre("PauseLayer::tryQuit", Priority::VeryEarlyPre);
     }
 
     void customSetup() {
@@ -37,11 +41,15 @@ class $modify(LazerPauseLayer, PauseLayer) {
     }
 
     void tryQuit(CCObject* sender) {
-        if (!Mod::get()->getSettingValue<bool>("enabled") || !Mod::get()->getSettingValue<bool>("restyle-gameplay")
-            || !GameManager::get()->getGameVariable(CONFIRM_EXIT)) {
+        if (!m_fields->menu || !Mod::get()->getSettingValue<bool>("enabled")
+            || !Mod::get()->getSettingValue<bool>("restyle-gameplay")) {
             return PauseLayer::tryQuit(sender);
         }
         if (lazer::Dialog::isOpen()) return;
+        if (!GameManager::get()->getGameVariable(CONFIRM_EXIT)) {
+            this->onQuit(sender);
+            return;
+        }
         std::string level;
         if (auto play = PlayLayer::get(); play && play->m_level) level = play->m_level->m_levelName;
         Ref<PauseLayer> self = this;
@@ -51,17 +59,27 @@ class $modify(LazerPauseLayer, PauseLayer) {
         });
     }
 
-    // The dialog takes Escape (cancel) and keys: the pause menu underneath
-    // would resume.
+    // Escape on our pause menu means quit, just like its footer button.
+    // Popups above it keep Escape for themselves.
     void keyBackClicked() {
         if (lazer::Dialog::isOpen()) return;
+        if (m_fields->menu && Mod::get()->getSettingValue<bool>("enabled")
+            && Mod::get()->getSettingValue<bool>("restyle-gameplay")) {
+            if (!lazer::gameplayPopupOnTop()) this->tryQuit(nullptr);
+            return;
+        }
         PauseLayer::keyBackClicked();
     }
 
     void keyDown(enumKeyCodes key, double timestamp) {
         if (lazer::Dialog::isOpen()) return;
-        // Up / down / enter pick and press osu!'s buttons; the rest (Escape,
-        // space, other mods' keybinds) stay GD's. Pressing one may close the
+        if (key == KEY_Escape && m_fields->menu && Mod::get()->getSettingValue<bool>("enabled")
+            && Mod::get()->getSettingValue<bool>("restyle-gameplay")) {
+            this->keyBackClicked();
+            return;
+        }
+        // Up / down / enter pick and press osu!'s buttons; the rest (space,
+        // other mods' keybinds) stay GD's. Pressing one may close the
         // menu: nothing after it.
         if (auto menu = m_fields->menu; menu && menu->handleKey(key)) return;
         PauseLayer::keyDown(key, timestamp);

@@ -59,9 +59,10 @@ float CommentsOverlay::buildComment(GJComment* comment, float y) {
     auto content = m_list;
     // Like GD's CommentCell: the author's name is in their user score, and a
     // missing account ID comes from the user IDs GD has seen (kept on the comment).
-    std::string author = comment->m_userScore ? std::string(comment->m_userScore->m_userName) : "";
+    auto authorScore = comment->m_userScore ? comment->m_userScore : m_historyPlayer.data();
+    std::string author = authorScore ? std::string(authorScore->m_userName) : "";
     if (author.empty()) author = glm->userNameForUserID(comment->m_userID);
-    if (comment->m_accountID <= 0 && comment->m_userScore) comment->m_accountID = comment->m_userScore->m_accountID;
+    if (comment->m_accountID <= 0 && authorScore) comment->m_accountID = authorScore->m_accountID;
     if (comment->m_accountID <= 0) comment->m_accountID = glm->accountIDForUserID(comment->m_userID);
     int me = GJAccountManager::get()->m_accountID;
     bool own = me > 0 && comment->m_accountID == me;
@@ -75,7 +76,7 @@ float CommentsOverlay::buildComment(GJComment* comment, float y) {
     auto tile = RoundedBox::create({av, av}, av / 2, m_scheme.background6());
     tile->setPosition(avatarAt);
     content->addChild(tile);
-    if (auto s = comment->m_userScore) {
+    if (auto s = authorScore) {
         auto icon = playerIcon(s->m_iconID, s->m_iconType, s->m_color1, s->m_color2, s->m_color3, s->m_glowEnabled, av * 0.62f);
         icon->setPosition(avatarAt);
         content->addChild(icon, 1);
@@ -129,10 +130,11 @@ float CommentsOverlay::buildComment(GJComment* comment, float y) {
         x += w + 4 * k;
     };
     // The level's creator (osu!'s "mapper"), and the percent GD attached.
-    if (comment->m_accountID > 0 && comment->m_accountID == m_level->m_accountID.value()) {
+    if (m_level && comment->m_accountID > 0 && comment->m_accountID == m_level->m_accountID.value()) {
         badge("creator", m_scheme.light1(), theme::rgb(m_scheme.background6()));
     }
     if (comment->m_percentage > 0) badge(fmt::format("{}%", comment->m_percentage), m_scheme.colour3(), {255, 255, 255});
+    if (m_history && comment->m_levelID > 0) badge(fmt::format("level #{}", comment->m_levelID), m_scheme.background4(), theme::rgb(m_scheme.content2()));
     if (hidden) {
         auto label = makeText(comment->m_commentDeleted ? "deleted" : "spam", Weight::Bold, 14 * k);
         label->setColor(MUTED);
@@ -166,10 +168,11 @@ float CommentsOverlay::buildComment(GJComment* comment, float y) {
     // liked it, and a thumbs down under it. Not on your own, and only once.
     {
         int id = comment->m_commentID;
+        int levelID = m_history ? comment->m_levelID : m_levelID;
         int voted = 0; // 1 liked, -1 disliked
         if (auto it = m_votes.find(id); it != m_votes.end()) voted = it->second ? 1 : -1;
-        else if (glm->hasLikedItem(LikeItemType::Comment, id, true, m_levelID)) voted = 1;
-        else if (glm->hasLikedItem(LikeItemType::Comment, id, false, m_levelID)) voted = -1;
+        else if (glm->hasLikedItem(LikeItemType::Comment, id, true, levelID)) voted = 1;
+        else if (glm->hasLikedItem(LikeItemType::Comment, id, false, levelID)) voted = -1;
         bool canVote = !own && voted == 0 && !hidden;
         Ref<GJComment> ref = comment;
 

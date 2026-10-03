@@ -116,6 +116,7 @@ bool PauseMenu::init(PauseLayer* layer) {
     std::vector<Slider*> sliders;
     for (auto child : CCArrayExt<CCNode*>(layer->getChildren())) {
         findSliders(child, sliders);
+        m_vanillaNodes.emplace_back(child);
         child->setVisible(false);
     }
     // Hidden sliders would still take drags: ours drive them instead.
@@ -486,6 +487,11 @@ void PauseMenu::ccTouchCancelled(CCTouch*, CCEvent*) {
 }
 
 void PauseMenu::update(float dt) {
+    // Other pause mods can reveal GD's nodes after setup. They remain alive
+    // for their handlers, but only the custom controls should be drawn.
+    for (auto const& node : m_vanillaNodes) {
+        if (node->getParent() == m_layer) node->setVisible(false);
+    }
     // Once every mod has had its customSetup: gather their buttons.
     if (!m_scanned) {
         m_scanned = true;

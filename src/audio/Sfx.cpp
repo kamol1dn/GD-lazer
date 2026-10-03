@@ -102,6 +102,12 @@ void playCue(char const* name) {
     if (volume > 0.f) playOnGroup(name, 1.f, volume);
 }
 
+void preloadCue(char const* name) {
+    if (uiVolume() <= 0.f) return;
+    soundFor(name);
+    group();
+}
+
 void hover(char const* name) {
     // HoverSampleDebounceComponent shares one timestamp across every hover sound.
     static char const* const HOVER_KEY = "hover";

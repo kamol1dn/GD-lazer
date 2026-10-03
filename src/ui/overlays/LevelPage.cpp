@@ -7,6 +7,7 @@
 #include "CommentsOverlay.hpp"
 #include "LevelFacts.hpp"
 #include "LevelPageInternal.hpp"
+#include "../select/SongSelect.hpp"
 
 #include <Geode/Geode.hpp>
 #include <algorithm>
@@ -406,6 +407,7 @@ void LevelPage::updateActions() {
 
 void LevelPage::play() {
     if (m_leaving || !m_owner) return;
+    if (m_owner->getChildByID("level-page-loader"_spr)) return;
     if (std::string(m_level->m_levelString).empty()) {
         // GD is fetching it (it started as its page was built): play once it lands.
         m_playWhenReady = true;
@@ -416,7 +418,18 @@ void LevelPage::play() {
         updateActions();
         return;
     }
-    if (!pressGD("play-menu", "play-button")) m_owner->onPlay(nullptr);
+    Ref<LevelPage> self = this;
+    if (auto loader = SongSelect::pageLoader(m_level, [self] {
+        if (self->m_leaving || !self->isRunning()) return;
+        if (!self->pressGD("play-menu", "play-button")) self->m_owner->onPlay(nullptr);
+    })) {
+        loader->setID("level-page-loader"_spr);
+        // The overlay's body is transformed while opening; the loader needs
+        // the scene's full-screen coordinates.
+        m_owner->addChild(loader, 200);
+    } else {
+        if (!pressGD("play-menu", "play-button")) m_owner->onPlay(nullptr);
+    }
 }
 
 bool LevelPage::hasGD(char const* menuID, char const* buttonID) const {
@@ -443,7 +456,7 @@ void LevelPage::levelChanged() {
     rebuildSections();
     if (m_playWhenReady && !std::string(m_level->m_levelString).empty()) {
         m_playWhenReady = false;
-        if (!pressGD("play-menu", "play-button")) m_owner->onPlay(nullptr);
+        play();
     }
 }
 

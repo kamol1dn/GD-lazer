@@ -17,16 +17,16 @@ void CommentsOverlay::load(int page) {
     m_loadingMs = 0;
     m_pendingTotal = -1;
     m_page = page;
-    m_key = std::string(glm->getCommentKey(m_levelID, page, static_cast<int>(m_sort), CommentKeyType::Level));
+    m_key = std::string(glm->getCommentKey(m_levelID, page, static_cast<int>(m_sort), commentType()));
     glm->m_levelCommentDelegate = this;
     // `total` is the count GD already knows, so the server can skip counting again.
-    glm->getLevelComments(m_levelID, page, std::max(0, m_total), static_cast<int>(m_sort), CommentKeyType::Level);
+    glm->getLevelComments(m_levelID, page, std::max(0, m_total), static_cast<int>(m_sort), commentType());
     rebuild();
 }
 
 void CommentsOverlay::reload(bool resetCache) {
     // GD keeps comment pages for a while; a refresh (and a new comment) wants fresh ones.
-    if (resetCache) GameLevelManager::sharedState()->resetCommentTimersForLevelID(m_levelID, CommentKeyType::Level);
+    if (resetCache) GameLevelManager::sharedState()->resetCommentTimersForLevelID(m_levelID, commentType());
     m_comments->removeAllObjects();
     m_total = -1;
     load(0);
@@ -85,6 +85,7 @@ void CommentsOverlay::loadCommentsFailed(char const* key) {
 }
 
 void CommentsOverlay::post() {
+    if (m_history) return;
     if (m_posting) return;
     if (!loggedIn()) return askSignIn("comment on levels");
     std::string text = m_input ? trim(std::string(m_input->getString())) : "";
@@ -126,12 +127,13 @@ void CommentsOverlay::vote(GJComment* comment, bool like) {
     if (!comment) return;
     if (!loggedIn()) return askSignIn("vote on comments");
     int id = comment->m_commentID;
+    int levelID = m_history ? comment->m_levelID : m_levelID;
     auto glm = GameLevelManager::sharedState();
     // One vote per comment (GD remembers yours on this device).
-    if (m_votes.contains(id) || glm->hasLikedItem(LikeItemType::Comment, id, true, m_levelID)
-        || glm->hasLikedItem(LikeItemType::Comment, id, false, m_levelID)) return;
+    if (m_votes.contains(id) || glm->hasLikedItem(LikeItemType::Comment, id, true, levelID)
+        || glm->hasLikedItem(LikeItemType::Comment, id, false, levelID)) return;
     // GD's LikeItemLayer, without the popup.
-    glm->likeItem(LikeItemType::Comment, id, like, m_levelID);
+    glm->likeItem(LikeItemType::Comment, id, like, levelID);
     m_votes[id] = like;
     // Count it right away, like GD's comment cells do.
     comment->m_likeCount += like ? 1 : -1;

@@ -34,6 +34,7 @@ public:
     // GD's InfoLayer this stands in for (created, not shown): it's kept
     // hidden inside the page for as long as the page is open.
     static bool present(GJGameLevel* level, InfoLayer* gdLayer = nullptr);
+    static bool presentHistory(GJUserScore* player);
     // Whether this GD InfoLayer is a level's comments, which this page shows.
     static bool wants(InfoLayer* layer);
 
@@ -80,7 +81,7 @@ protected:
         bool hovered = false;
     };
 
-    bool init(GJGameLevel* level);
+    bool init(GJGameLevel* level, GJUserScore* player = nullptr);
     void onUpdate(float dt) override;
     void onClosed() override;
 
@@ -114,6 +115,9 @@ protected:
 
     geode::Ref<GJGameLevel> m_level;
     int m_levelID = 0;
+    bool m_history = false;
+    geode::Ref<GJUserScore> m_historyPlayer;
+    CommentKeyType commentType() const { return m_history ? CommentKeyType::User : CommentKeyType::Level; }
     Sort m_sort = Sort::Recent;
     State m_state = State::Loading;
     std::string m_key;                 // GD's key for the request in flight
