@@ -23,11 +23,14 @@ void SongSelect::update(float dt) {
         dispatcher->removeDelegate(this);
         dispatcher->addDelegate(this);
     }
-    // An overlay (the comments page) covers everything: the search box mustn't
-    // take taps through it, and nothing here hovers.
-    if (m_search && m_searchEnabled == g_overlayOpen) {
-        m_searchEnabled = !g_overlayOpen;
+    // An overlay (the comments page) covers everything, and so does the
+    // loader: the search box mustn't take taps through them, and nothing here
+    // hovers. (GD's text box takes its own touches, so it's switched off.)
+    bool covered = g_overlayOpen || m_starting;
+    if (m_search && m_searchEnabled == covered) {
+        m_searchEnabled = !covered;
         m_search->setEnabled(m_searchEnabled);
+        if (m_pageInput) m_pageInput->setEnabled(m_searchEnabled);
     }
     // Playing: only the loader animates; song select is frozen and fading.
     if (m_starting) {
@@ -113,10 +116,11 @@ bool SongSelect::ccTouchBegan(CCTouch* touch, CCEvent*) {
     auto loc = touch->getLocation();
     // An overlay is open over song select: its own text box may want the touch.
     if (g_overlayOpen) return false;
+    // The loader: nothing underneath it reacts (the search box included).
+    if (m_starting) return true;
     // Let the search field (and the pager's box) take their own touches.
     if (m_search && containsWorld(m_search, loc)) return false;
     if (m_pageInput && containsWorld(m_pageInput, loc)) return false;
-    if (m_starting) return true;
     m_touchDown = true;
     m_dragging = false;
     m_touchStart = m_touchLast = loc;

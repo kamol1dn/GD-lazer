@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.6.2
+
+- Fixed: tapping the search box while a level was loading from song select focused it through the loader (thanks airalics for the report)
+
 ## v0.6.1
 
 - Friends: a toolbar button opens a page where you search players by name or user ID (ten a page) or browse your friends, as cards two across with their icon, name, moderator badge and stars, moons, demons and user coins; a card opens their profile (souply, thanks Gilsonbro for asking)
