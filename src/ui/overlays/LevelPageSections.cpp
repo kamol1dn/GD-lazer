@@ -127,8 +127,9 @@ float LevelPage::buildDetails(float y, float x, float w) {
         auto& button = addButton(m_sectionButtons, m_sections, Button::Kind::Tab, icon::USER, creator, TAB_HEIGHT * k,
                                  {x + labelW - 12 * k, -(y + rowH / 2)}, {0, 0.5f}, [this] {
             if (m_leaving || pressGD("right-side-menu", "creator-name")) return;
-            int user = m_level->m_userID.value();
-            if (user > 0) ProfilePage::create(user, false)->show();
+            // Profiles are by account, not user ID (a 1.9 level's creator has none).
+            int account = m_level->m_accountID.value();
+            if (account > 0) ProfilePage::create(account, account == GJAccountManager::get()->m_accountID)->show();
         });
         button.textColor = theme::rgb(m_scheme.content2());
         y += rowH;

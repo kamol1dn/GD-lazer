@@ -5,6 +5,7 @@
 - Fixed: tapping the search box while a level was loading from song select focused it through the loader (thanks airalics for the report)
 - Fixed: backing out of a level page reached from a creator's profile (opened from song select's level page) jumped back to song select instead of the creator's levels (thanks airalics for the report)
 - Fixed: a profile's "comment history" button did nothing (thanks airalics for the report)
+- Fixed: the level page's creator button opened a player that couldn't load when GD's own creator button wasn't available: it looked the profile up by user ID instead of account ID
 
 ## v0.6.1
 
