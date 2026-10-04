@@ -302,6 +302,7 @@ float CommentsOverlay::buildSortHeader(float y) {
 }
 
 void CommentsOverlay::updateEditor() {
+    if (m_history) return;
     if (m_fixedPills.size() <= std::max(m_postPill, m_signInPill)) return;
     bool in = loggedIn();
     std::string text = m_input ? trim(std::string(m_input->getString())) : "";

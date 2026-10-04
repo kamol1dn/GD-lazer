@@ -4,7 +4,13 @@
 
 - Fixed: tapping the search box while a level was loading from song select focused it through the loader (thanks airalics for the report)
 - Fixed: backing out of a level page reached from a creator's profile (opened from song select's level page) jumped back to song select instead of the creator's levels (thanks airalics for the report)
-- Fixed: a profile's "comment history" button did nothing (thanks airalics for the report)
+- A profile's "comment history" opens a Lazer page: the player's comments with their icon, the level each was left on, its date, percent and likes, voted on like a level's, sorted by recent or top, with refresh and pages (souply; the button did nothing before, thanks airalics for the report)
+- Song select's level page button opens a page for RobTop's levels too (it played them): the song, your normal and practice progress, coins, stars or moons, attempts, jumps and a platformer's best time, with play and back (souply, thanks airalics for the report)
+- Playing from a level page shows Lazer's loading card, as from song select (souply)
+- Chests opened from the pause menu (other mods' buttons) open Lazer's rewards page instead of crashing, and restyling a popup holds on to the labels it rebuilds (souply, thanks BlueCrafter12 for the report)
+- Daily chests show their rewards on Mac too: its GD skips the call the page listened for, so the page reads the reward GD stored instead (souply)
+- Ventilla's radio stops when the music player leaves it, and starts again when it comes back (souply, thanks BlueCrafter12 for the report)
+- Other pause mods revealing GD's pause menu under Lazer's (Hide Pause Menu) no longer show it, and quitting without "confirm exit" goes straight out instead of through their hooks (souply)
 - Fixed: the level page's creator button opened a player that couldn't load when GD's own creator button wasn't available: it looked the profile up by user ID instead of account ID
 - The intro stays in time with its theme: the theme is loaded before the intro starts, and the timeline follows the audio's position through long frames (thanks airalics for the report)
 

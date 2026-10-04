@@ -181,9 +181,16 @@ namespace {
         }
     }
 
-    void collect(CCNode* node, std::vector<CCNode*>& out) {
+    void collect(CCNode* node, std::vector<Ref<CCNode>>& out) {
         out.push_back(node);
         for (auto child : CCArrayExt<CCNode*>(node->getChildren())) collect(child, out);
+    }
+
+    bool under(CCNode* node, CCNode* root) {
+        for (auto n = node; n; n = n->getParent()) {
+            if (n == root) return true;
+        }
+        return false;
     }
 
     void restylePopup(FLAlertLayer* popup) {
@@ -203,14 +210,19 @@ namespace {
         if (panel) replaceWithBox(panel, theme::BACKGROUND4, 10.f, true);
 
         // Text areas first: rebuilding one frees its old line labels.
-        std::vector<CCNode*> nodes;
+        std::vector<Ref<CCNode>> nodes;
         collect(root, nodes);
-        for (auto node : nodes) {
-            if (auto area = typeinfo_cast<TextArea*>(node); area && node->isVisible()) restyleTextArea(area);
+        for (auto const& node : nodes) {
+            if (auto area = typeinfo_cast<TextArea*>(node.data()); area && node->isVisible()) restyleTextArea(area);
         }
         nodes.clear();
         collect(root, nodes);
-        for (auto node : nodes) {
+        // Restyling a label rebuilds its letters: the ones gathered before are
+        // held on to (not freed under the loop) and, no longer in the popup,
+        // skipped.
+        for (auto const& held : nodes) {
+            auto node = held.data();
+            if (!under(node, root)) continue;
             if (!node->isVisible() || node == panel) continue;
             bool inInput = hasAncestor(node, root, [](CCNode* n) { return typeinfo_cast<CCTextInputNode*>(n); });
             // Done above (or left alone when its text isn't known).

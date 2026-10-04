@@ -49,6 +49,8 @@ public:
     // unless it's the one already shown, whose results are kept).
     static cocos2d::CCScene* onlineScene(browse::Request const& request);
     static SongSelect* create(levels::Kind kind, bool fromMenu = false);
+    // Reuse the loading card over a level page, keeping GD's playback/navigation.
+    static SongSelect* pageLoader(GJGameLevel* level, std::function<void()> launch);
 
     // Set while the player came from song select, so leaving gameplay or GD's
     // level page returns here instead of GD's own screens.
@@ -390,6 +392,7 @@ protected:
     geode::Ref<GJGameLevel> m_loaderLevel;
     bool m_withSong = true;             // the loader also downloads the song
     bool m_downloading = false;         // the loader waits for the level's data and song
+    std::function<void()> m_pageLaunch;
     bool m_downloadFailed = false;
     float m_failedMs = 0;
     cocos2d::CCLabelBMFont* m_loaderStatus = nullptr;

@@ -262,6 +262,17 @@ namespace {
 
         void updateSlot(Slot& slot, float dt, bool status) {
             auto page = s_page;
+            // Mac's rewardsStatusFinished inlines showCollectReward, bypassing
+            // our hook. Read the accepted result GD stored on the unlock layer.
+            if (slot.requested && !slot.item && page->m_openLayer) {
+                auto unlock = page->m_openLayer;
+                if (unlock->m_chestType == slot.type && unlock->m_rewardCollected && unlock->m_rewardItem) {
+                    collected(slot.type, unlock->m_rewardItem);
+                    Loader::get()->queueInMainThread([self = Ref<RewardUnlockLayer>(unlock)] {
+                        self->onClose(nullptr);
+                    });
+                }
+            }
             switch (slot.phase) {
                 case Phase::Idle:
                     if (!status) {
@@ -457,6 +468,15 @@ void showRewards() {
 // Our hidden RewardsPage must never grab touches (FLAlertLayer registers at a
 // very high priority and swallows everything).
 class $modify(LazerHiddenRewardsPage, RewardsPage) {
+    void show() {
+        if (!this->getUserObject("hidden"_spr) && Mod::get()->getSettingValue<bool>("enabled")
+            && Mod::get()->getSettingValue<bool>("restyle-popups")) {
+            lazer::showRewards();
+            return;
+        }
+        RewardsPage::show();
+    }
+
     void registerWithTouchDispatcher() {
         if (this->getUserObject("hidden"_spr)) return;
         RewardsPage::registerWithTouchDispatcher();

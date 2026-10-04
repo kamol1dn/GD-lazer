@@ -11,6 +11,51 @@ using namespace geode::prelude;
 
 namespace lazer {
 
+SongSelect* SongSelect::pageLoader(GJGameLevel* level, std::function<void()> launch) {
+    auto ret = new SongSelect();
+    if (!ret->CCLayer::init()) {
+        delete ret;
+        return nullptr;
+    }
+    ret->autorelease();
+    ret->m_pageLaunch = std::move(launch);
+    ret->m_win = CCDirector::get()->getWinSize();
+    ret->m_k = unitScale();
+    ret->m_loaderLevel = level;
+    ret->m_withSong = false; // GD's page still handles song/download decisions.
+    auto source = CCLayerGradient::create({34, 26, 50, 255}, {8, 8, 12, 255});
+    source->setContentSize(ret->m_win);
+    // MenuBackground borrows its source; keep it alive for every capture.
+    source->setVisible(false);
+    ret->addChild(source, -10);
+    ret->m_background = MenuBackground::create(source, BACKGROUND_DIM, true, true);
+    ret->addChild(ret->m_background, -1);
+    // The shared animator moves these song-select containers as it fades out.
+    ret->m_wedge = CCNode::create();
+    ret->m_carousel = CCNode::create();
+    ret->addChild(ret->m_wedge);
+    ret->addChild(ret->m_carousel);
+    auto entry = levels::fromLevel(level, false);
+    levels::resolve(entry);
+    ret->buildLoader(entry);
+    ret->m_starting = true;
+    ret->m_loaderPhase = LoaderPhase::In;
+    ret->m_uiAlpha.set(0);
+    ret->m_loaderScale.set(0.7f);
+    ret->m_loaderScale.to(1, 650, Easing::OutQuint);
+    ret->m_loaderAlpha.set(0);
+    ret->m_loaderAlpha.to(1, 500, Easing::OutQuint);
+    ret->m_metaAlpha.set(0);
+    ret->m_spinnerAlpha.set(1);
+    ret->m_spinnerScale.set(1);
+    ret->m_dimTween.set(BACKGROUND_DIM);
+    ret->m_dimTween.to(LOADER_DIM, 800, Easing::OutQuint);
+    ret->setTouchEnabled(true);
+    ret->scheduleUpdate();
+    sfx::play(sfx::sound::MENU_PLAY_SELECT);
+    return ret;
+}
+
 void SongSelect::start() {
     if (!m_hasSelection || m_starting) return;
     auto const& e = m_entries[m_visible[m_selected]];
@@ -60,6 +105,17 @@ void SongSelect::play(bool withSong) {
     sfx::play(sfx::sound::MENU_PLAY_SELECT);
     closeMenu();
     m_starting = true;
+    // Disable immediately, before another touch or keyboard event can reach
+    // the fields. The normal update restores them after loader cancellation.
+    m_searchEnabled = false;
+    if (m_search) {
+        m_search->defocus();
+        m_search->setEnabled(false);
+    }
+    if (m_pageInput) {
+        m_pageInput->defocus();
+        m_pageInput->setEnabled(false);
+    }
     m_pressed = nullptr;
     m_loaderLevel = e.level;
 
@@ -281,6 +337,18 @@ void SongSelect::updateLoader(float dt) {
         case LoaderPhase::Out:
             if (m_loaderMs >= CONTENT_OUT) {
                 m_loaderPhase = LoaderPhase::Pushed;
+                if (m_pageLaunch) {
+                    // Defer the scene-changing native action until this update ends.
+                    Ref<SongSelect> self = this;
+                    Loader::get()->queueInMainThread([self] {
+                        auto launch = self->m_pageLaunch;
+                        if (!self->isRunning()) return;
+                        self->removeFromParent();
+                        self->m_pageLaunch = nullptr;
+                        if (launch) launch();
+                    });
+                    return;
+                }
                 m_previewDelay = -1;
                 returnsHere() = true;
                 if (!m_levelScene) {
@@ -355,6 +423,12 @@ void SongSelect::updateLoader(float dt) {
 // stalls, but it does so while the loader is up (osu! shows a spinner there
 // too), and the push afterwards is only the transition.
 void SongSelect::loadLevel() {
+    if (m_pageLaunch) {
+        // Let LevelInfoLayer start the level after the card; its native checks
+        // and other mods' onPlay hooks must still run.
+        m_levelLoad = LevelLoad::Loaded;
+        return;
+    }
     // The preview (faded by now) leaves its music slot to the level: see play().
     FMODAudioEngine::sharedEngine()->stopAndRemoveMusic(0);
     m_previewPath.clear();

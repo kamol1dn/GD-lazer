@@ -25,6 +25,9 @@ class $modify(LazerPauseLayer, PauseLayer) {
         // Straight after GD's own setup, before other mods add theirs: only
         // GD's nodes get hidden, and mods' buttons are gathered a frame later.
         (void)self.setHookPriorityPost("PauseLayer::customSetup", Priority::VeryEarlyPost);
+        // Hide Pause Menu interprets our hidden vanilla background as a
+        // hidden pause screen and consumes tryQuit to reveal it instead.
+        (void)self.setHookPriorityPre("PauseLayer::tryQuit", Priority::VeryEarlyPre);
     }
 
     void customSetup() {
@@ -37,11 +40,15 @@ class $modify(LazerPauseLayer, PauseLayer) {
     }
 
     void tryQuit(CCObject* sender) {
-        if (!Mod::get()->getSettingValue<bool>("enabled") || !Mod::get()->getSettingValue<bool>("restyle-gameplay")
-            || !GameManager::get()->getGameVariable(CONFIRM_EXIT)) {
+        if (!m_fields->menu || !Mod::get()->getSettingValue<bool>("enabled")
+            || !Mod::get()->getSettingValue<bool>("restyle-gameplay")) {
             return PauseLayer::tryQuit(sender);
         }
         if (lazer::Dialog::isOpen()) return;
+        if (!GameManager::get()->getGameVariable(CONFIRM_EXIT)) {
+            this->onQuit(sender);
+            return;
+        }
         std::string level;
         if (auto play = PlayLayer::get(); play && play->m_level) level = play->m_level->m_levelName;
         Ref<PauseLayer> self = this;

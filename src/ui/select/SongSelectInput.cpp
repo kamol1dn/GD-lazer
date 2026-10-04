@@ -12,6 +12,12 @@ using namespace geode::prelude;
 namespace lazer {
 
 void SongSelect::update(float dt) {
+    // A level page's loading card: only the loader runs (there's no song
+    // select around it, and it never took the mouse delegate).
+    if (m_pageLaunch) {
+        updateLoader(dt);
+        return;
+    }
     float ms = dt * 1000.f;
     m_enterMs += ms;
     // GD's mouse dispatcher only feeds its newest delegate, and GD's song widget

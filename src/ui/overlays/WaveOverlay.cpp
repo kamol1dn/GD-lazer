@@ -162,6 +162,13 @@ void WaveOverlay::close() {
     if (!m_open) return;
     m_open = false;
     g_overlayOpen = false;
+    // One under this (a profile under its comment history) keeps it set.
+    if (auto parent = this->getParent()) {
+        for (auto child : CCArrayExt<CCNode*>(parent->getChildren())) {
+            if (child == this) continue;
+            if (auto other = typeinfo_cast<WaveOverlay*>(child); other && other->isOpen()) g_overlayOpen = true;
+        }
+    }
     // WaveContainer.PopOut
     sfx::play(sfx::sound::WAVE_POP_OUT);
     for (size_t i = 0; i < m_waves.size(); i++) m_waveY[i].to(m_height, DISAPPEAR_DURATION, Easing::InSine);
