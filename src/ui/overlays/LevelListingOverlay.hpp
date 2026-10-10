@@ -137,6 +137,9 @@ protected:
     void buildSearchControl();
     void buildFilterRow(Row row);
     void buildStrip();
+    // Buttons other mods add beside GD's "new" button (GDShare's import), on
+    // the strip after "new". Once every hook on GD's browser has run.
+    void addModButtons();
     void addCard(cocos2d::CCObject* item);
     void addSkeleton(cocos2d::CCNode* parent, int count, float y);
     void rebuildFooter();
@@ -209,6 +212,8 @@ protected:
     float m_rowsHeight = 0;
     cocos2d::CCLayerColor* m_controlBg = nullptr;
     cocos2d::CCNode* m_stripHolder = nullptr;  // the strip, moved as the control's height changes
+    float m_stripNextX = 0;                    // where the next button after "new" goes
+    bool m_modButtonsAdded = false;
     cocos2d::CCLabelBMFont* m_countLabel = nullptr;
     size_t m_clearPill = SIZE_MAX;             // index into m_fixedPills
     RoundedBox* m_progressTrack = nullptr;     // the loading bar under the strip

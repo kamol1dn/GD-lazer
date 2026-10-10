@@ -1,5 +1,8 @@
 #include "LevelListingInternal.hpp"
 
+#include <algorithm>
+#include <array>
+
 using namespace geode::prelude;
 
 namespace lazer {
@@ -235,6 +238,7 @@ void LevelListingOverlay::buildStrip() {
     newLabel->setAnchorPoint({0, 0.5f});
     newLabel->setPosition({TAB_PAD * k + iconW + 6 * k, bh / 2});
     button.node->addChild(newLabel, 1);
+    m_stripNextX = STRIP_MARGIN * k + w + 10 * k;
 
     // At the right: refresh (GD's lists have one) and how many there are.
     float right = W - STRIP_MARGIN * k;
@@ -258,6 +262,42 @@ void LevelListingOverlay::buildStrip() {
     m_progressBar->setAnchorPoint({0, 0});
     m_progressBar->setPosition({0, 0});
     m_progressTrack->addChild(m_progressBar);
+}
+
+// Other mods put their buttons in GD's "new level" menu (GDShare's import):
+// the browser sits hidden under this page, so they go on the strip after
+// "new", and press the hidden button. Known ones get an icon and a name; the
+// rest the words of their ID.
+void LevelListingOverlay::addModButtons() {
+    if (!m_owner || !m_stripHolder) return;
+    auto menu = m_owner->getChildByID("new-level-menu");
+    if (!menu) return;
+    constexpr std::array VANILLA = {"new-level-button", "new-list-button", "my-levels-button", "switch-mode-button"};
+    float k = m_k, tabH = TAB_HEIGHT * k, cy = -STRIP_HEIGHT * k / 2;
+    for (auto child : CCArrayExt<CCNode*>(menu->getChildren())) {
+        auto item = typeinfo_cast<CCMenuItem*>(child);
+        if (!item) continue;
+        std::string id = item->getID();
+        if (id.empty() || std::find(VANILLA.begin(), VANILLA.end(), id) != VANILLA.end()) continue;
+        char const* glyph = nullptr;
+        std::string text;
+        if (id == "hjfod.gdshare/import-level-button") {
+            glyph = icon::FILE_IMPORT;
+            text = "import";
+        } else {
+            text = id.substr(id.find('/') + 1);
+            if (text.ends_with("-button")) text.resize(text.size() - 7);
+            std::replace(text.begin(), text.end(), '-', ' ');
+            std::replace(text.begin(), text.end(), '_', ' ');
+        }
+        Ref<CCMenuItem> keep = item;
+        auto& tab = addTab(m_fixedPills, m_stripHolder, glyph, text, tabH, {m_stripNextX, cy}, {0, 0.5f}, [this, keep] {
+            if (m_leaving) return;
+            if (m_input) m_input->defocus();
+            keep->activate();
+        });
+        m_stripNextX += tab.node->getContentSize().width + 10 * k;
+    }
 }
 
 // --- filter rows ---

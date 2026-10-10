@@ -184,6 +184,11 @@ void LevelListingOverlay::onUpdate(float dt) {
     // The close button: leave right away (the waves keep dropping during the fade).
     if (!isOpen()) return goBack();
     float ms = dt * 1000.f;
+    // A frame in: every mod's hook on GD's browser has added its buttons by now.
+    if (!m_modButtonsAdded) {
+        m_modButtonsAdded = true;
+        addModButtons();
+    }
 
     if (m_searchDelay >= 0) {
         m_searchDelay -= ms;
