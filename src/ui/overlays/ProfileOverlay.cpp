@@ -213,6 +213,10 @@ void ProfileOverlay::adopt(ProfilePage* page) {
     // The old page goes; onUpdate rebuilds from the new one once it has loaded.
     if (m_page && m_page->getParent() == this) m_page->removeFromParent();
     m_page = page;
+    // The new page can share the old one's cached score and posts, which
+    // wouldn't count as new data: rebuild from it anyway.
+    m_shownScore = nullptr;
+    m_shownComments = -1;
 }
 
 void ProfileOverlay::onEnter() {
@@ -417,8 +421,12 @@ float ProfileOverlay::buildActions(float y) {
     y += 10 * k;
     auto normal = m_scheme.background4();
     auto accent = m_scheme.colour3();
-    auto run = [page](void (ProfilePage::*handler)(CCObject*)) {
-        return [page, handler] { (page->*handler)(nullptr); };
+    // The page at the time of the press: GD reopens the profile after its
+    // friends / requests / messages popups, and the page these were built for is gone by then.
+    auto run = [this](void (ProfilePage::*handler)(CCObject*)) {
+        return [this, handler] {
+            if (m_page && m_page->m_score) (m_page.data()->*handler)(nullptr);
+        };
     };
     float right = bodySize().width - m_pad, lineH = 30 * k + gap;
     auto pill = [&](char const* glyph, std::string const& label, std::function<void()> action, ccColor4B color) {
@@ -635,7 +643,7 @@ float ProfileOverlay::buildPosts(float y) {
     y = addSectionTitle("posts", y);
     if (page->m_ownProfile) {
         addPill(icon::PLUS, "new post", W - m_pad - 120 * k, y - 46 * k,
-                [page] { page->onComment(nullptr); }, m_scheme.colour3());
+                [this] { if (m_page) m_page->onComment(nullptr); }, m_scheme.colour3());
     }
 
     auto comments = fields(page)->m_fields->comments.data();
@@ -698,8 +706,8 @@ float ProfileOverlay::buildPosts(float y) {
     if (pages > 1) {
         y += 6 * k;
         float x = m_pad;
-        if (page->m_page > 0) x += addPill(icon::CHEVRON_LEFT, "newer", x, y, [page] { page->onPrevPage(nullptr); }, m_scheme.background4()) + 8 * k;
-        if (page->m_page + 1 < pages) addPill(icon::CHEVRON_RIGHT, "older", x, y, [page] { page->onNextPage(nullptr); }, m_scheme.background4());
+        if (page->m_page > 0) x += addPill(icon::CHEVRON_LEFT, "newer", x, y, [this] { if (m_page) m_page->onPrevPage(nullptr); }, m_scheme.background4()) + 8 * k;
+        if (page->m_page + 1 < pages) addPill(icon::CHEVRON_RIGHT, "older", x, y, [this] { if (m_page) m_page->onNextPage(nullptr); }, m_scheme.background4());
         auto label = makeText(fmt::format("page {} of {}", page->m_page + 1, pages), Weight::Regular, 14 * k);
         label->setColor(theme::rgb(m_scheme.content2()));
         label->setAnchorPoint({1, 0.5f});
@@ -745,7 +753,7 @@ void ProfileOverlay::onUpdate(float dt) {
                || stateSignature() != m_signature) {
         // New data (first load, refresh, posts page, friend / follow changes).
         float scroll = m_scroll->scroll();
-        bool first = m_shownScore == nullptr;
+        bool first = m_pills.empty();
         rebuild();
         if (!first) m_scroll->scrollTo(scroll, false);
     }
