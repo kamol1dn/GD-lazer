@@ -77,6 +77,8 @@ namespace {
     enum class Drag { None, Started, Rotating };
 
     // Shaking it left and right gets it talking, more each time you keep going.
+    // Past the last line it means it: a second after that fades, it switches
+    // itself off (the custom cursor setting), and the system cursor is back.
     constexpr std::array<char const*, 10> NAGS {{
         "hey, stop!",
         "i said stop",
@@ -142,8 +144,12 @@ namespace {
             m_scale.set(0.6f);
             m_scale.to(1, 500, Easing::OutElasticHalf);
             m_alpha.to(1, 150, Easing::OutQuint);
-            m_left = 2.2f + text.size() * 0.03f;
+            m_left = showFor(text);
         }
+
+        // How long a line stays before it fades (300 ms more).
+        static float showFor(std::string const& text) { return 2.2f + text.size() * 0.03f; }
+        static constexpr float FADE_S = 0.3f;
 
         void tick(float dt) {
             if (!this->isVisible()) return;
@@ -336,6 +342,14 @@ namespace {
             if (m_bubble) m_bubble->tick(dt);
             if (m_visible && focused) quips::followSong();
 
+            // Said its last word: it leaves.
+            if (m_leaveAt >= 0 && m_time >= m_leaveAt) {
+                m_leaveAt = -1;
+                m_nagLevel = 0;
+                Mod::get()->setSettingValue<bool>("custom-cursor", false);
+                return;
+            }
+
             // Dizzy: once it has spun back, it shivers for a moment.
             float wobble = 0;
             CCPoint jitter;
@@ -423,7 +437,11 @@ namespace {
             m_reversals.clear();
             // Left alone for a while, it forgets.
             if (m_time - m_lastNag > 8) m_nagLevel = 0;
-            if (m_bubble) m_bubble->say(NAGS[std::min<int>(m_nagLevel, NAGS.size() - 1)]);
+            auto line = NAGS[std::min<int>(m_nagLevel, NAGS.size() - 1)];
+            if (m_bubble) m_bubble->say(line);
+            if (m_nagLevel >= int(NAGS.size()) - 1 && m_leaveAt < 0) {
+                m_leaveAt = m_time + Bubble::showFor(line) + Bubble::FADE_S + 1.f;
+            }
             m_nagLevel++;
             m_lastNag = m_time;
         }
@@ -468,6 +486,7 @@ namespace {
         std::vector<float> m_reversals;
         int m_nagLevel = 0;
         float m_lastNag = -100;
+        float m_leaveAt = -1;
         float m_dizzyAt = -1;
         bool m_dizzySaid = false;
         int m_dizzyCount = 0;
