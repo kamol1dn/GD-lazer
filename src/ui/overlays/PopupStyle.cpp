@@ -9,6 +9,7 @@
 #include "Dialog.hpp"
 
 #include <Geode/Geode.hpp>
+#include <Geode/modify/ButtonSprite.hpp>
 #include <Geode/modify/FLAlertLayer.hpp>
 #include <Geode/modify/TextArea.hpp>
 
@@ -159,11 +160,36 @@ namespace {
         return box;
     }
 
+    // GD's button textures in our colours. A group of buttons (the editor's
+    // colour channels, a trigger's modes) shows the unpicked ones grey and the
+    // picked one in another colour; red is GD's special button.
+    constexpr char const* GREY_BUTTON = "GJ_button_04.png";
+    constexpr char const* RED_BUTTON = "GJ_button_05.png";
+    constexpr ccColor4B RED {0xcc, 0x33, 0x33, 255};
+
+    ccColor4B buttonColour(std::string_view texture) {
+        if (endsWith(texture, GREY_BUTTON)) return theme::DARK3;
+        if (endsWith(texture, RED_BUTTON)) return RED;
+        return theme::COLOUR3;
+    }
+
+    ccColor4B buttonColour(CCScale9Sprite* bg) {
+        auto batch = bg->_scale9Image;
+        auto texture = batch ? batch->getTexture() : nullptr;
+        if (!texture) return theme::COLOUR3;
+        // The texture cache keeps one texture per file, the one the 9-slice was made from.
+        auto cache = CCTextureCache::sharedTextureCache();
+        for (auto file : {GREY_BUTTON, RED_BUTTON}) {
+            if (texture == cache->addImage(file, false)) return buttonColour(file);
+        }
+        return theme::COLOUR3;
+    }
+
     void restyleButton(ButtonSprite* button) {
         // ButtonSprite = 9-slice background + label (+ optional icon).
         for (auto child : CCArrayExt<CCNode*>(button->getChildren())) {
             if (auto bg = typeinfo_cast<CCScale9Sprite*>(child)) {
-                replaceWithBox(bg, theme::COLOUR3, 4.f, false);
+                replaceWithBox(bg, buttonColour(bg), 4.f, false);
                 break;
             }
         }
@@ -274,6 +300,39 @@ class $modify(LazerPopup, FLAlertLayer) {
         // GD pages we run hidden behind our own UI (profiles, chests).
         if (this->getUserObject("hidden"_spr)) return;
         restylePopup(this);
+    }
+};
+
+// GD shows which button of a group is picked (the editor's colour channels, the
+// channel picker behind a colour trigger's "Color ID", trigger modes) by giving
+// each a new background: updateBGImage drops the old 9-slice, adds a visible
+// one over our box and lays the label out again for GD's font (#58). A
+// restyled button keeps its look, and shows the pick in its box's colour.
+class $modify(LazerButtonSprite, ButtonSprite) {
+    void updateBGImage(char const* file) {
+        auto box = typeinfo_cast<RoundedBox*>(this->getChildByID("restyled-bg"_spr));
+        if (!box) return ButtonSprite::updateBGImage(file);
+        // The caption stays the same: the layout from before is the right one.
+        auto size = this->getContentSize();
+        auto position = this->getPosition();
+        auto parent = this->getParent();
+        auto parentSize = parent ? parent->getContentSize() : CCSize {};
+        auto label = m_label;
+        float scaleX = label ? label->getScaleX() : 1.f, scaleY = label ? label->getScaleY() : 1.f;
+        auto labelPosition = label ? label->getPosition() : CCPoint {};
+
+        ButtonSprite::updateBGImage(file);
+
+        if (m_BGSprite) m_BGSprite->setVisible(false);
+        if (label) {
+            label->setScaleX(scaleX);
+            label->setScaleY(scaleY);
+            label->setPosition(labelPosition);
+        }
+        this->setContentSize(size);
+        this->setPosition(position);
+        if (parent) parent->setContentSize(parentSize);
+        box->setFillColor(buttonColour(file ? file : ""));
     }
 };
 
