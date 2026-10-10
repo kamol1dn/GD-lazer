@@ -31,6 +31,8 @@ namespace {
     constexpr float LOGO_BEATS = REVEAL_BEAT - LOGO_BEAT;
     constexpr int ICONS_PER_BEAT = 2;
     constexpr unsigned START_MS = static_cast<unsigned>(FIRST_BEAT_MS + START_BEAT * BEAT_MS);
+    // Starting mid-song, it fades in over the first beats.
+    constexpr float FADE_IN_MS = 1000;
 
     // The stabs and kicks of that bar, in 16ths from the song's first beat
     // (its onsets): a burst of triangles on each.
@@ -219,7 +221,10 @@ void IntroSequence::start() {
     m_musicTrack = MusicPlayer::get().startIntroTrack(START_MS);
     if (!m_musicTrack) {
         m_cue = sfx::playCueFile(dashPath(), START_MS);
-        if (m_cue) m_cue->getVolume(&m_cueVolume);
+        if (m_cue) {
+            m_cue->getVolume(&m_cueVolume);
+            m_cue->setVolume(0);
+        }
         log::info("Intro plays its own copy of Dash ({})", m_cue ? "ok" : "failed to open");
     }
 }
@@ -364,8 +369,10 @@ void IntroSequence::update(float dt) {
     }
     if (havePosition && std::abs(static_cast<float>(position) - m_timeMs) > 60.f) m_timeMs = static_cast<float>(position);
 
+    float fadeIn = eased(Easing::OutQuad, (m_timeMs - START_MS) / FADE_IN_MS);
     if (m_revealed) {
         if (m_musicTrack) {
+            setMusicVolume(1);
             this->removeFromParent();
             return;
         }
@@ -379,8 +386,13 @@ void IntroSequence::update(float dt) {
         }
         return;
     }
-    // Our own copy plays: whatever is on the music channel waits for the reveal.
-    if (!m_musicTrack) setMusicVolume(0);
+    if (m_musicTrack) {
+        setMusicVolume(fadeIn);
+    } else {
+        // Our own copy plays: whatever is on the music channel waits for the reveal.
+        setMusicVolume(0);
+        if (m_cue) m_cue->setVolume(m_cueVolume * fadeIn);
+    }
 
     float beatPos = (m_timeMs - FIRST_BEAT_MS) / BEAT_MS; // beats since the first (negative before it)
     float phase = beatPos - std::floor(beatPos);         // how far into the current beat
