@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.3
+
+- Windows: updating from v0.6.1 or v0.6.2 fails with the file "in use" (fixed below, but the fix only applies once you have it). Update by hand this once: close GD, download kamol1dn.lazer-ui.geode from the releases page and put it in place of the one in your geode/mods folder (thanks Luchatounet for the report)
+- Fixed: Lazer settings' update failing on Windows: the download stayed open while it was swapped in, and Windows won't move an open file (thanks Luchatounet for the report)
+- Fixed: a new best from song select not being kept when the level had to be downloaded first: GD saves a downloaded level as a new copy, and the attempt's percentage went to the old one (thanks v3xyrn and ViviNoSmol for the reports)
+- Fixed: crash on a profile's buttons after opening its friends, requests or messages once (thanks illegal-acc for the report)
+- Fixed: buttons in the editor's popups (colour channels, the colour trigger's Color ID picker, trigger modes) turning back into GD's when one is picked; the picked one now stands out in Lazer's colours (thanks Gilsonbro for the report)
+- Fixed: spamming Escape into a level page leaving it stuck, ignoring every press: Escape now waits for the screen to finish fading, like GD's own back (thanks Kierek3 for the report)
+
 ## v0.6.2
 
 - Fixed: tapping the search box while a level was loading from song select focused it through the loader (thanks airalics for the report)
