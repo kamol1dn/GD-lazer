@@ -38,7 +38,7 @@ bool LazerMenuLayer::init() {
 
     if (!MenuLayer::init()) return false;
     // Not on the Geode index: look for updates on GitHub (even with the Lazer menu off).
-    lazer::updater::onMenu(this, intro ? 11.f : 1.f);
+    lazer::updater::onMenu(this, intro ? 7.f : 1.f);
     g_newLevelFlow = false;
     // Back at the menu: gameplay no longer returns to song select.
     lazer::SongSelect::returnsHere() = false;
