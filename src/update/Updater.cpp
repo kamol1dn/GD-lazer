@@ -199,6 +199,11 @@ namespace {
                 // Write next to the package, check it really is our mod at that version, then swap it in.
                 auto temp = target;
                 temp += ".download";
+                // The archive is closed again before the swap: Windows won't move a file that's open.
+                auto hasBinary = [&temp](char const* name) {
+                    auto archive = file::Unzip::create(temp);
+                    return archive && archive.unwrap().hasEntry(name);
+                };
                 if (auto written = file::writeBinary(temp, res.data()); !written) {
                     error = written.unwrapErr();
                 } else if (auto meta = ModMetadata::createFromGeodeFile(temp); meta.hasErrors()) {
@@ -213,7 +218,7 @@ namespace {
                     error = compatible.unwrapErr();
                 } else if (auto compatible = meta.checkGeodeVersion(); !compatible) {
                     error = compatible.unwrapErr();
-                } else if (auto archive = file::Unzip::create(temp); !archive || !archive.unwrap().hasEntry(meta.getBinaryName().data())) {
+                } else if (!hasBinary(meta.getBinaryName().data())) {
                     error = "the download has no binary for this platform";
                 } else {
                     std::error_code ec;
