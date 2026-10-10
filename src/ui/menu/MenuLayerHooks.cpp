@@ -220,7 +220,7 @@ bool LazerMenuLayer::init() {
     }
 
     if (intro) {
-        auto sequence = lazer::IntroSequence::create(buttons->logoRadius(), [this] {
+        auto sequence = lazer::IntroSequence::create([this] {
             // The ticker ran behind the intro: show it again now it can be seen.
             auto& player = lazer::MusicPlayer::get();
             if (m_fields->ticker && player.isActive()) m_fields->ticker->show(player.current());

@@ -11,14 +11,18 @@
 
 namespace lazer {
 
-// The game-start intro, after osu!'s IntroTriangles (osu.Game/Screens/Menu/IntroTriangles.cs),
-// cut to Dash (MDK, the last main level's song, GD's own copy) from the bar
-// before its first drop: GD's cube, spike, orb and trigger punch in two a beat
-// on its stabs (osu!'s ruleset icons) with triangles glitching behind them,
-// the logo draws itself in and shrinks to its place on the menu over the last
-// two beats as the voice says "Geometry Dash" (the cursor says it too; see
-// quips::followSong), and the drop is the flash that reveals the menu, with
-// the song playing on as its first track.
+// The game-start intro, cut to the bar before the first drop of Dash (MDK,
+// the last main level's song, GD's own copy), which plays on as the menu's
+// first track:
+//  - streaks rush past as if the camera were dashing along a level, thicker
+//    on every stab and kick of the bar and denser into the drop;
+//  - your cube flies in from the left with a trail in your colours, hops on
+//    the second beat, then dashes off to the right as the voice says
+//    "Geometry Dash", writing GEOMETRY in its wake a letter at a time (the
+//    cursor says the line too; see quips::followSong);
+//  - DASH slams in under it on the word, shaking the camera;
+//  - on the drop a flash reveals the menu and the words zoom through the
+//    camera over it.
 //
 // The song is the clock: the timeline follows the music channel's position.
 // A tap or Escape skips to the reveal.
@@ -27,15 +31,10 @@ namespace lazer {
 // plays its own copy of the song from GD's resources and fades it out as the
 // menu's own music fades in at the reveal.
 //
-// The logo is drawn as line art in the player's colours (osu!'s LogoAnimation
-// strokes): a thick coloured pass with a thin glow-coloured highlight racing
-// along behind it, ring first, then the cube.
-//
 // Covers the whole menu while it runs; `onReveal` is called at the flash.
 class IntroSequence : public cocos2d::CCLayer {
 public:
-    // `logoRadius`: the menu logo's radius, so the drawn logo lands exactly on it.
-    static IntroSequence* create(float logoRadius, std::function<void()> onReveal);
+    static IntroSequence* create(std::function<void()> onReveal);
 
     void update(float dt) override;
     void registerWithTouchDispatcher() override;
@@ -45,24 +44,26 @@ public:
     bool revealed() const { return m_revealed; }
 
 protected:
-    struct Triangle {
-        cocos2d::CCPoint pos; // top-left, in the triangles area
-        float size;
-        bool outline;
+    struct Streak {
+        float x, y;     // right end, in points
+        float length;
+        float width;
+        float speed;    // points per second, leftwards
+        float alpha;
+    };
+    struct TrailPoint {
+        cocos2d::CCPoint pos;
         float ageMs;
     };
 
-    bool init(float logoRadius, std::function<void()> onReveal);
+    bool init(std::function<void()> onReveal);
     // Starts the song (and the timeline with it).
     void start();
-    void spawnTriangles(int count, float size);
-    void updateTriangles(float ms, bool emitting, float intervalMs);
-    void layoutIcons(float spacing);
-    void drawLogo(float progress);
-    // Draws `path` (a polyline) from its start up to `progress`, coloured
-    // from `from` to `to` along its length.
-    void drawStroke(std::vector<cocos2d::CCPoint> const& path, float progress, float width,
-                    cocos2d::ccColor3B from, cocos2d::ccColor3B to);
+    void spawnStreaks(int count, float widthScale, float alphaScale);
+    void updateStreaks(float dt, float rate, float brightness);
+    void updateCube(float dt);
+    void updateText();
+    void layoutLetters(float spacing);
     void reveal();
     void skip();
     void setMusicVolume(float volume);
@@ -80,21 +81,20 @@ protected:
     float m_revealMs = 0;
     PlayerPalette m_palette;
 
-    cocos2d::CCNode* m_content = nullptr;
+    cocos2d::CCNode* m_content = nullptr; // everything under the flash; shaken as the camera
+    cocos2d::CCDrawNode* m_streakDraw = nullptr;
+    std::vector<Streak> m_streaks;
+    float m_streakClock = 0;
 
-    cocos2d::CCDrawNode* m_triangleDraw = nullptr;
-    std::vector<Triangle> m_triangles;
-    float m_triangleClock = 0;
+    cocos2d::CCNode* m_cube = nullptr;
+    cocos2d::CCDrawNode* m_trailDraw = nullptr;
+    std::vector<TrailPoint> m_trail;
+    float m_cubeSize = 0;
 
-    cocos2d::CCNode* m_iconsScale = nullptr;
-    cocos2d::CCNode* m_icons = nullptr;
-    std::vector<cocos2d::CCNode*> m_iconHolders; // each scales its icon for the beat
-
-    cocos2d::CCNode* m_logoContainer = nullptr;
-    cocos2d::CCNode* m_logo = nullptr;
-    cocos2d::CCDrawNode* m_logoDraw = nullptr;
-    std::vector<cocos2d::CCPoint> m_ringPath, m_cubePath, m_innerPath;
-    float m_logoBaseRadius = 0;
+    cocos2d::CCNode* m_text = nullptr; // GEOMETRY over DASH, at the centre
+    std::vector<cocos2d::CCLabelBMFont*> m_letters;
+    std::vector<float> m_letterX;      // each letter's centre, at the default spacing
+    cocos2d::CCLabelBMFont* m_dash = nullptr;
 };
 
 } // namespace lazer

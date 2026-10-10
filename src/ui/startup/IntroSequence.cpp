@@ -4,6 +4,7 @@
 #include "../../audio/MusicPlayer.hpp"
 #include "../../audio/Sfx.hpp"
 #include "../../integrations/ModIntegrations.hpp"
+#include "../core/Text.hpp"
 
 #include <Geode/fmod/fmod.hpp>
 #include <array>
@@ -16,92 +17,52 @@ namespace lazer {
 namespace {
     // Dash by MDK as it ships with GD (Resources/Dash.mp3), measured from the
     // file: 128 BPM in 4/4, the first beat at 1.149 s, the voice saying
-    // "Geometry Dash" at 15.0 s into the first drop at 16.149 s (bar 9).
+    // "Geometry Dash" at 15.0 s ("Dash" from about 15.75 s) into the first
+    // drop at 16.149 s (bar 9).
     constexpr float BPM = 128;
     constexpr float BEAT_MS = 60000.f / BPM; // 468.75
     constexpr float FIRST_BEAT_MS = 1149;
-    float beat(float n) { return FIRST_BEAT_MS + n * BEAT_MS; }
 
-    // What's on screen, in beats from the song's first. One bar, the one
-    // before the drop: longer dragged on every start.
-    constexpr int START_BEAT = 28;  // bar 8: the song starts here
-    constexpr int ICONS_BEAT = 28;  // the icons punch in, two a beat, triangles glitching behind
-    constexpr int LOGO_BEAT = 30;   // the logo draws itself in, down to its place on the menu
-    constexpr int REVEAL_BEAT = 32; // the drop: the flash, and the menu under it
-    constexpr float LOGO_BEATS = REVEAL_BEAT - LOGO_BEAT;
-    constexpr int ICONS_PER_BEAT = 2;
-    constexpr unsigned START_MS = static_cast<unsigned>(FIRST_BEAT_MS + START_BEAT * BEAT_MS);
+    // The bar before the drop (bar 8, beats 28-31 from the song's first):
+    // longer dragged on every start.
+    constexpr int START_BEAT = 28;
+    constexpr unsigned START_MS = static_cast<unsigned>(FIRST_BEAT_MS + START_BEAT * BEAT_MS); // 14274
+    constexpr float HOP_MS = 14743;    // beat 29: the cube hops
+    constexpr float WRITE_MS = 15000;  // "Geometry": the cube dashes right, writing it
+    constexpr float WRITE_END_MS = 15450;
+    constexpr float DASH_MS = 15750;   // "Dash": DASH slams in
+    constexpr float DROP_MS = 16149;   // the drop: the flash
     // Starting mid-song, it fades in over the first beats.
     constexpr float FADE_IN_MS = 1000;
+    // After the flash the words zoom through the camera, over the menu.
+    constexpr float ZOOM_MS = 260;
 
-    // The stabs and kicks of that bar, in 16ths from the song's first beat
-    // (its onsets): a burst of triangles on each.
-    constexpr std::array<int, 6> ONSETS {{112, 113, 115, 116, 118, 120}};
-
-    constexpr float ICON_SPACING = 200;
-    constexpr float PUNCH_MS = 250; // an icon's punch-in
-
-    constexpr float SCALE_START = 1.2f;
-    constexpr float SCALE_ADJUST = 0.8f;
+    // The stabs and kicks of the bar (the song's onsets), for a burst of
+    // streaks and a nudge of the camera on each.
+    constexpr std::array<float, 8> HITS {{14274, 14392, 14626, 14743, 14990, 15212, 15460, 15680}};
 
     // Without the music player: the menu's music fades in as the intro's copy
     // of the song fades out after the reveal.
     constexpr float TRACK_FADE = 1800;
 
-    constexpr float TRIANGLE_LIFE = 120;
-    constexpr float ICON_SIZE = 30;
-
-    constexpr float PI = 3.14159265f;
-
-    // Closed polyline round a rounded square, starting at the middle of its
-    // top edge and running clockwise (anticlockwise if `ccw`).
-    std::vector<CCPoint> roundedSquare(float side, float corner, bool ccw) {
-        float h = side / 2 - corner;
-        CCPoint centres[4] {{h, h}, {h, -h}, {-h, -h}, {-h, h}}; // clockwise from top-right
-        std::vector<CCPoint> pts {{0, side / 2}};
-        for (int c = 0; c < 4; c++) {
-            float start = PI / 2 - c * PI / 2;
-            for (int i = 0; i <= 8; i++) {
-                float a = start - (PI / 2) * i / 8;
-                pts.push_back(centres[c] + CCPoint(std::cos(a), std::sin(a)) * corner);
-            }
-        }
-        pts.push_back({0, side / 2});
-        if (ccw) std::reverse(pts.begin(), pts.end());
-        return pts;
-    }
-
-    // Clockwise circle from `startAngle`.
-    std::vector<CCPoint> circle(float radius, float startAngle, int segments) {
-        std::vector<CCPoint> pts;
-        for (int i = 0; i <= segments; i++) {
-            float a = startAngle - 2 * PI * i / segments;
-            pts.push_back(CCPoint(std::cos(a), std::sin(a)) * radius);
-        }
-        return pts;
-    }
-
-    // `progress` remapped to 0..1 over [from, to], eased.
-    float stage(float progress, float from, float to) {
-        return static_cast<float>(ease(Easing::OutQuad, std::clamp((progress - from) / (to - from), 0.f, 1.f)));
-    }
+    constexpr float CUBE_SIZE = 44;
+    constexpr float TRAIL_MS = 260;
+    constexpr float GEOMETRY_SIZE = 54;
+    constexpr float DASH_SIZE = 104;
+    constexpr float LETTER_SPACING = 4;
+    constexpr float LETTER_IN_MS = 160;
 
     float eased(Easing easing, float t) {
         return static_cast<float>(ease(easing, std::clamp(t, 0.f, 1.f)));
     }
+    float lerp(float a, float b, float t) { return a + (b - a) * t; }
 
     std::mt19937& rng() {
         static std::mt19937 r {std::random_device {}()};
         return r;
     }
     float random01() { return std::uniform_real_distribution<float>(0.f, 1.f)(rng()); }
-
-    CCNode* fitted(CCNode* node, float size) {
-        auto s = node->getContentSize();
-        float longest = std::max(s.width, s.height);
-        if (longest > 0) node->setScale(size / longest);
-        return node;
-    }
+    float randomBetween(float lo, float hi) { return lerp(lo, hi, random01()); }
 
     // GD's copy of the song, for the intro's own playback. GD plays its songs
     // by bare file name (on Android the full path is inside the APK).
@@ -115,9 +76,9 @@ namespace {
     }
 }
 
-IntroSequence* IntroSequence::create(float logoRadius, std::function<void()> onReveal) {
+IntroSequence* IntroSequence::create(std::function<void()> onReveal) {
     auto ret = new IntroSequence();
-    if (ret->init(logoRadius, std::move(onReveal))) {
+    if (ret->init(std::move(onReveal))) {
         ret->autorelease();
         return ret;
     }
@@ -125,7 +86,7 @@ IntroSequence* IntroSequence::create(float logoRadius, std::function<void()> onR
     return nullptr;
 }
 
-bool IntroSequence::init(float logoRadius, std::function<void()> onReveal) {
+bool IntroSequence::init(std::function<void()> onReveal) {
     if (!CCLayer::init()) return false;
     m_onReveal = std::move(onReveal);
     // The music player's copy needs no preparing; our own is opened now,
@@ -136,58 +97,49 @@ bool IntroSequence::init(float logoRadius, std::function<void()> onReveal) {
     m_palette = PlayerPalette::current();
     CCPoint center = m_win / 2;
 
+    // Black until the menu is revealed; the camera shake moves everything
+    // over it, so the backdrop is a little larger than the screen.
+    auto backdrop = CCLayerColor::create({0, 0, 0, 255}, m_win.width + 80 * m_k, m_win.height + 80 * m_k);
+    backdrop->setPosition({-40 * m_k, -40 * m_k});
+    this->addChild(backdrop, -1);
+
     m_content = CCNode::create();
     this->addChild(m_content);
 
-    // IntroScreen.CreateBackground: black until the menu is revealed.
-    m_content->addChild(CCLayerColor::create({0, 0, 0, 255}), -1);
+    m_streakDraw = CCDrawNode::create();
+    m_streakDraw->setBlendFunc({GL_ONE, GL_ONE}); // additive
+    m_content->addChild(m_streakDraw);
 
-    m_triangleDraw = CCDrawNode::create();
-    m_triangleDraw->setBlendFunc({GL_ONE, GL_ONE}); // additive
-    m_content->addChild(m_triangleDraw);
+    m_trailDraw = CCDrawNode::create();
+    m_trailDraw->setBlendFunc({GL_ONE, GL_ONE});
+    m_content->addChild(m_trailDraw, 1);
 
-    // osu!'s ruleset icons, as GD's building blocks: your cube, a spike, an orb and a trigger.
-    m_iconsScale = CCNode::create();
-    m_iconsScale->setPosition(center);
-    m_content->addChild(m_iconsScale, 2);
-    m_icons = CCNode::create();
-    m_icons->setVisible(false);
-    m_iconsScale->addChild(m_icons);
-
-    float icon = ICON_SIZE * m_k;
-    std::vector<CCNode*> icons;
-    icons.push_back(integrations::playerIcon(false, icon));
-    for (auto frame : {"spike_01_001.png", "ring_01_001.png", "edit_eMoveComBtn_001.png"}) {
-        auto sprite = CCSprite::createWithSpriteFrameName(frame);
-        if (!sprite) sprite = CCSprite::create();
-        icons.push_back(fitted(sprite, icon));
-    }
-    for (auto node : icons) {
-        if (!node) continue;
-        auto holder = CCNode::create();
-        holder->addChild(node);
-        holder->setVisible(false);
-        m_icons->addChild(holder);
-        m_iconHolders.push_back(holder);
+    m_cubeSize = CUBE_SIZE * m_k;
+    m_cube = integrations::playerIcon(false, m_cubeSize);
+    if (m_cube) {
+        m_cube->setVisible(false);
+        m_content->addChild(m_cube, 2);
     }
 
-    // The logo drawing itself in (osu!'s LazerLogo), sized so that it ends up
-    // exactly on the menu logo once it has shrunk (scale 0.4 x 1.0).
-    m_logoBaseRadius = logoRadius / ((SCALE_START - SCALE_ADJUST) * (SCALE_START - SCALE_ADJUST * 0.25f));
-    m_logoContainer = CCNode::create();
-    m_logoContainer->setPosition(center);
-    m_content->addChild(m_logoContainer, 3);
-    m_logo = CCNode::create();
-    m_logo->setVisible(false);
-    m_logoContainer->addChild(m_logo);
+    // GEOMETRY, a label per letter so each can land on its own, over DASH.
+    m_text = CCNode::create();
+    m_text->setPosition(center);
+    m_content->addChild(m_text, 3);
+    for (char c : std::string("GEOMETRY")) {
+        auto label = makeText(std::string(1, c), Weight::SemiBold, GEOMETRY_SIZE * m_k);
+        label->setOpacity(0);
+        m_text->addChild(label);
+        m_letters.push_back(label);
+    }
+    layoutLetters(LETTER_SPACING * m_k);
+    m_letterX.clear();
+    for (auto label : m_letters) m_letterX.push_back(label->getPositionX());
 
-    float r = m_logoBaseRadius;
-    m_logoDraw = CCDrawNode::create();
-    m_logo->addChild(m_logoDraw);
-    // The menu logo's rim, and a cube about the size of its centre icon.
-    m_ringPath = circle(r * 0.96f, PI / 2, 128);
-    m_cubePath = roundedSquare(r * 0.8f, r * 0.1f, false);
-    m_innerPath = roundedSquare(r * 0.36f, r * 0.05f, true);
+    m_dash = makeText("DASH", Weight::Bold, DASH_SIZE * m_k);
+    m_dash->setColor(m_palette.rim);
+    m_dash->setOpacity(0);
+    m_dash->setPosition({0, -46 * m_k});
+    m_text->addChild(m_dash);
 
     this->setTouchEnabled(true);
     this->setKeypadEnabled(true);
@@ -229,85 +181,157 @@ void IntroSequence::start() {
     }
 }
 
-void IntroSequence::spawnTriangles(int count, float size) {
-    for (int i = 0; i < count; i++) {
-        m_triangles.push_back({{random01(), random01()}, (random01() + 0.2f) * size * m_k, random01() < 0.5f, 0});
+void IntroSequence::layoutLetters(float spacing) {
+    std::vector<float> widths;
+    float total = 0;
+    for (auto label : m_letters) {
+        float w = label->getContentSize().width * label->getScaleX();
+        widths.push_back(w);
+        total += w;
+    }
+    if (!m_letters.empty()) total += spacing * (m_letters.size() - 1);
+    float x = -total / 2;
+    for (size_t i = 0; i < m_letters.size(); i++) {
+        m_letters[i]->setPositionX(x + widths[i] / 2);
+        x += widths[i] + spacing;
     }
 }
 
-// GlitchingTriangles: a trickle of triangles while `emitting`, each flashing
-// out over 120 ms, plus the bursts spawnTriangles adds on the song's notes.
-void IntroSequence::updateTriangles(float ms, bool emitting, float intervalMs) {
-    for (auto& t : m_triangles) t.ageMs += ms;
-    std::erase_if(m_triangles, [](Triangle const& t) { return t.ageMs >= TRIANGLE_LIFE; });
+// Streaks start past the right edge and rush left. The further from the
+// middle line, the faster and longer: the edges of the view fly by.
+void IntroSequence::spawnStreaks(int count, float widthScale, float alphaScale) {
+    for (int i = 0; i < count; i++) {
+        float y = random01() * m_win.height;
+        float depth = std::abs(y - m_win.height / 2) / (m_win.height / 2); // 0 middle .. 1 edge
+        float speed = lerp(1400, 3400, depth) * m_k * randomBetween(0.8f, 1.2f);
+        m_streaks.push_back({
+            m_win.width + randomBetween(0, 300) * m_k, y,
+            lerp(60, 320, depth) * m_k * randomBetween(0.6f, 1.4f),
+            lerp(1.2f, 2.6f, depth) * m_k * widthScale,
+            speed,
+            lerp(0.12f, 0.5f, depth) * alphaScale,
+        });
+    }
+}
 
-    if (emitting) {
-        m_triangleClock += ms;
-        while (m_triangleClock >= intervalMs) {
-            m_triangleClock -= intervalMs;
-            spawnTriangles(1, 80);
+void IntroSequence::updateStreaks(float dt, float rate, float brightness) {
+    m_streakClock += dt * rate;
+    while (m_streakClock >= 1) {
+        m_streakClock -= 1;
+        spawnStreaks(1, 1, 1);
+    }
+    for (auto& s : m_streaks) s.x -= s.speed * dt;
+    std::erase_if(m_streaks, [](Streak const& s) { return s.x + s.length < 0; });
+
+    m_streakDraw->clear();
+    for (auto const& s : m_streaks) {
+        float a = std::min(1.f, s.alpha * brightness);
+        // Bright at the head, trailing off behind it.
+        ccColor4F head {a, a, a, a};
+        CCPoint from {s.x - s.length, s.y}, to {s.x, s.y};
+        m_streakDraw->drawSegment(from, to, s.width / 2, {a * 0.35f, a * 0.35f, a * 0.35f, a * 0.35f});
+        m_streakDraw->drawSegment(from + (to - from) * 0.6f, to, s.width / 2, head);
+    }
+}
+
+// In from the left to its mark on the first beat, a hop with a quarter turn
+// on the second, then off to the right from "Geometry", writing as it goes.
+// A trail in your colours follows while it's moving fast.
+void IntroSequence::updateCube(float dt) {
+    if (!m_cube) return;
+    float t = m_timeMs;
+    float cx = m_win.width / 2, cy = m_win.height / 2;
+    float mark = cx - 250 * m_k;          // where it waits, left of the words
+    float baseY = cy + 26 * m_k;          // on GEOMETRY's line
+    float x, y = baseY, rotation = 0;
+    bool visible = true;
+
+    if (t < WRITE_MS) {
+        float in = eased(Easing::OutQuint, (t - START_MS) / 330.f);
+        x = lerp(-m_cubeSize, mark, in);
+        if (t >= HOP_MS) {
+            // A GD jump: up and down over ~350 ms, turning a quarter on the way.
+            float p = std::clamp((t - HOP_MS) / 350.f, 0.f, 1.f);
+            y += 70 * m_k * 4 * p * (1 - p);
+            rotation = 90 * eased(Easing::OutQuad, p);
         }
     } else {
-        m_triangleClock = 0;
+        rotation = 90;
+        float p = (t - WRITE_MS) / (WRITE_END_MS - WRITE_MS);
+        x = lerp(mark, m_win.width + m_cubeSize * 2, eased(Easing::InQuad, p));
+        rotation += 180 * std::clamp(p, 0.f, 1.2f);
+        visible = p < 1.2f;
     }
+    // Beats land as a little bounce.
+    float beatPos = (t - FIRST_BEAT_MS) / BEAT_MS;
+    float phase = beatPos - std::floor(beatPos);
+    float pulse = 1 + 0.1f * std::pow(1 - phase, 3.f);
 
-    m_triangleDraw->clear();
-    float areaW = m_win.width * 0.4f, areaH = m_win.height * 0.16f;
-    CCPoint topLeft {(m_win.width - areaW) / 2, (m_win.height + areaH) / 2};
-    for (auto const& t : m_triangles) {
-        float a = 1.f - t.ageMs / TRIANGLE_LIFE;
-        float x = topLeft.x + t.pos.x * areaW, y = topLeft.y - t.pos.y * areaH, s = t.size;
-        CCPoint verts[3] {{x + s / 2, y}, {x + s, y - s}, {x, y - s}};
-        ccColor4F white {a, a, a, a};
-        if (t.outline) m_triangleDraw->drawPolygon(verts, 3, {0, 0, 0, 0}, 1.2f * m_k, white);
-        else m_triangleDraw->drawPolygon(verts, 3, white, 0, white);
-    }
-}
+    m_cube->setVisible(visible);
+    m_cube->setPosition({x, y});
+    m_cube->setRotation(rotation);
+    m_cube->setScale(pulse);
 
-void IntroSequence::layoutIcons(float spacing) {
-    float icon = ICON_SIZE * m_k, gap = spacing * m_k;
-    size_t n = m_iconHolders.size();
-    float total = icon * n + gap * (n - 1);
-    for (size_t i = 0; i < n; i++) {
-        m_iconHolders[i]->setPosition({-total / 2 + icon / 2 + i * (icon + gap), 0});
-    }
-}
-
-void IntroSequence::drawStroke(std::vector<CCPoint> const& path, float progress, float width,
-                               ccColor3B from, ccColor3B to) {
-    if (progress <= 0 || path.size() < 2) return;
-    // By length, so the stroke advances at a constant speed.
-    std::vector<float> lengths {0};
-    for (size_t i = 1; i < path.size(); i++) lengths.push_back(lengths.back() + ccpDistance(path[i - 1], path[i]));
-    float total = lengths.back(), drawTo = total * std::min(progress, 1.f);
-    auto colorAt = [&](float t) {
-        auto mix = [t](GLubyte a, GLubyte b) { return (a + (b - a) * t) / 255.f; };
-        return ccColor4F {mix(from.r, to.r), mix(from.g, to.g), mix(from.b, to.b), 1.f};
-    };
-    for (size_t i = 1; i < path.size() && lengths[i - 1] < drawTo; i++) {
-        CCPoint a = path[i - 1], b = path[i];
-        if (lengths[i] > drawTo) b = a + (b - a) * ((drawTo - lengths[i - 1]) / (lengths[i] - lengths[i - 1]));
-        m_logoDraw->drawSegment(a, b, width / 2, colorAt(lengths[i] / total));
+    // Trail: the last quarter second of positions, fading.
+    for (auto& p : m_trail) p.ageMs += dt * 1000;
+    std::erase_if(m_trail, [](TrailPoint const& p) { return p.ageMs >= TRAIL_MS; });
+    if (visible) m_trail.push_back({{x, y}, 0});
+    m_trailDraw->clear();
+    auto a = m_palette.gradientA, b = m_palette.gradientB;
+    for (size_t i = 1; i < m_trail.size(); i++) {
+        auto const& p0 = m_trail[i - 1];
+        auto const& p1 = m_trail[i];
+        float dist = ccpDistance(p0.pos, p1.pos);
+        if (dist < 0.5f) continue;
+        float life = 1 - p1.ageMs / TRAIL_MS;
+        float alpha = life * life * std::min(1.f, dist / (6 * m_k)) * 0.9f;
+        float mix = static_cast<float>(i) / m_trail.size();
+        ccColor4F color {
+            lerp(a.r, b.r, mix) / 255.f * alpha, lerp(a.g, b.g, mix) / 255.f * alpha,
+            lerp(a.b, b.b, mix) / 255.f * alpha, alpha,
+        };
+        m_trailDraw->drawSegment(p0.pos, p1.pos, m_cubeSize * 0.32f * life, color);
     }
 }
 
-// osu!'s LogoAnimation: thick strokes in the player's two colours trace the
-// ring, then the cube and its inner square, each with a thin glow-coloured
-// highlight racing along just behind. At the reveal the real logo takes over
-// under the flash.
-void IntroSequence::drawLogo(float progress) {
-    float r = m_logoBaseRadius;
-    auto a = m_palette.gradientA, b = m_palette.gradientB, glow = m_palette.rim;
-    ccColor3B white {255, 255, 255};
-    m_logoDraw->clear();
+// GEOMETRY appears a letter at a time as the cube passes each (stretched tall
+// and dropping into place); DASH slams in on the word with a shake; after
+// that the letters drift apart and the words swell towards the drop.
+void IntroSequence::updateText() {
+    float t = m_timeMs;
+    float cx = m_win.width / 2;
+    float mark = cx - 250 * m_k;
+    float right = m_win.width + m_cubeSize * 2;
 
-    drawStroke(m_ringPath, stage(progress, 0.f, 0.7f), r * 0.08f, a, b);
-    drawStroke(m_cubePath, stage(progress, 0.18f, 0.8f), r * 0.07f, b, a);
-    drawStroke(m_innerPath, stage(progress, 0.4f, 0.92f), r * 0.06f, a, b);
+    float spread = t >= DASH_MS ? eased(Easing::OutQuad, (t - DASH_MS) / (DROP_MS - DASH_MS)) : 0;
+    layoutLetters((LETTER_SPACING + 9 * spread) * m_k);
+    m_text->setScale(1 + 0.06f * spread);
 
-    drawStroke(m_ringPath, stage(progress, 0.08f, 0.8f), r * 0.022f, glow, white);
-    drawStroke(m_cubePath, stage(progress, 0.28f, 0.9f), r * 0.02f, glow, white);
-    drawStroke(m_innerPath, stage(progress, 0.5f, 1.f), r * 0.018f, glow, white);
+    for (size_t i = 0; i < m_letters.size(); i++) {
+        auto label = m_letters[i];
+        // When the cube's centre crosses this letter (its motion is InQuad over the dash).
+        float u = std::clamp((cx + m_letterX[i] - mark) / (right - mark), 0.f, 1.f);
+        float at = WRITE_MS + std::sqrt(u) * (WRITE_END_MS - WRITE_MS);
+        float age = t - at;
+        if (age < 0) {
+            label->setOpacity(0);
+            continue;
+        }
+        float p = eased(Easing::OutQuint, age / LETTER_IN_MS);
+        label->setOpacity(static_cast<GLubyte>(255 * std::min(1.f, age / 60.f)));
+        label->setScaleY(lerp(2.4f, 1.f, p));
+        label->setScaleX(lerp(0.7f, 1.f, p));
+        label->setPositionY(lerp(34 * m_k, 26 * m_k, p));
+    }
+
+    float age = t - DASH_MS;
+    if (age < 0) {
+        m_dash->setOpacity(0);
+    } else {
+        float p = eased(Easing::OutQuint, age / 200.f);
+        m_dash->setOpacity(static_cast<GLubyte>(255 * std::min(1.f, age / 50.f)));
+        m_dash->setScale(lerp(3.2f, 1.f, p));
+    }
 }
 
 void IntroSequence::reveal() {
@@ -316,9 +340,17 @@ void IntroSequence::reveal() {
     // The song plays on as the menu's; without it, the menu's own music starts
     // now and fades in (osu!'s IntroScreen.StartTrack).
     if (!m_musicTrack) MusicPlayer::get().releaseIntro();
-    m_content->setVisible(false);
     this->setKeypadEnabled(false);
     this->setTouchEnabled(false);
+
+    // Everything but the words goes; they zoom through over the menu.
+    for (auto child : CCArrayExt<CCNode*>(this->getChildren())) {
+        if (child != m_content) child->setVisible(false);
+    }
+    m_streakDraw->setVisible(false);
+    m_trailDraw->setVisible(false);
+    if (m_cube) m_cube->setVisible(false);
+    m_content->setPosition({0, 0});
 
     // GameWideFlash: an additive white flash fading out over a second.
     if (auto parent = this->getParent()) {
@@ -371,9 +403,22 @@ void IntroSequence::update(float dt) {
 
     float fadeIn = eased(Easing::OutQuad, (m_timeMs - START_MS) / FADE_IN_MS);
     if (m_revealed) {
+        // The words zoom through the camera, then it's all gone (our own copy
+        // of the song fading out under the menu's music first).
+        float zoom = (m_timeMs - m_revealMs) / ZOOM_MS;
+        if (zoom < 1) {
+            m_text->setScale(1 + 3.5f * eased(Easing::InQuad, zoom));
+            auto alpha = static_cast<GLubyte>(255 * (1 - eased(Easing::OutQuad, zoom)));
+            for (auto label : m_letters) {
+                if (label->getOpacity() > 0) label->setOpacity(std::min(label->getOpacity(), alpha));
+            }
+            if (m_dash->getOpacity() > 0) m_dash->setOpacity(std::min(m_dash->getOpacity(), alpha));
+        } else {
+            m_text->setVisible(false);
+        }
         if (m_musicTrack) {
             setMusicVolume(1);
-            this->removeFromParent();
+            if (zoom >= 1) this->removeFromParent();
             return;
         }
         float fade = std::min(1.f, (m_timeMs - m_revealMs) / TRACK_FADE);
@@ -394,51 +439,28 @@ void IntroSequence::update(float dt) {
         if (m_cue) m_cue->setVolume(m_cueVolume * fadeIn);
     }
 
-    float beatPos = (m_timeMs - FIRST_BEAT_MS) / BEAT_MS; // beats since the first (negative before it)
-    float phase = beatPos - std::floor(beatPos);         // how far into the current beat
-    float pulse = 1 + 0.16f * std::pow(1 - phase, 3.f);  // a kick on every beat, easing off
-
-    // --- triangles: a trickle, and a burst on every stab, behind the icons ---
-    bool triangles = beatPos >= ICONS_BEAT && beatPos < LOGO_BEAT;
-    if (triangles) {
-        for (int n : ONSETS) {
-            float t = beat(n / 4.f);
-            if (m_lastMs < t && m_timeMs >= t) spawnTriangles(6, 110);
-        }
+    // --- the bar's hits: a burst of streaks and a nudge of the camera on each; DASH's slam a kick ---
+    float shake = 0;
+    for (float hit : HITS) {
+        if (m_lastMs < hit && m_timeMs >= hit) spawnStreaks(14, 1.8f, 1.6f);
+        float age = m_timeMs - hit;
+        if (age >= 0) shake = std::max(shake, 2.5f * std::exp(-age / 70.f));
     }
-    updateTriangles(ms, triangles, 45.f);
+    if (m_lastMs < DASH_MS && m_timeMs >= DASH_MS) spawnStreaks(30, 2.2f, 1.8f);
+    if (m_timeMs >= DASH_MS) shake = std::max(shake, 11.f * std::exp(-(m_timeMs - DASH_MS) / 90.f));
+    m_content->setPosition({randomBetween(-shake, shake) * m_k, randomBetween(-shake, shake) * m_k});
 
-    // --- icons: two punching in on each beat ---
-    bool icons = beatPos >= ICONS_BEAT && beatPos < LOGO_BEAT;
-    m_icons->setVisible(icons);
-    if (icons) {
-        for (size_t i = 0; i < m_iconHolders.size(); i++) {
-            float age = m_timeMs - beat(ICONS_BEAT + static_cast<float>(i) / ICONS_PER_BEAT);
-            auto holder = m_iconHolders[i];
-            holder->setVisible(age >= 0);
-            if (age < 0) continue;
-            holder->setScale(age < PUNCH_MS ? 1.8f - 0.8f * eased(Easing::OutQuint, age / PUNCH_MS) : pulse);
-        }
-        layoutIcons(ICON_SPACING);
-        // osu! eases the row down while it shows.
-        m_iconsScale->setScale(1.f - 0.2f * ((beatPos - ICONS_BEAT) / (LOGO_BEAT - ICONS_BEAT)));
-    }
+    // --- streaks: picking up through the bar, pouring in towards the drop ---
+    float build = std::clamp((m_timeMs - START_MS) / (DROP_MS - START_MS), 0.f, 1.f);
+    float rate = lerp(25, 90, build) + (m_timeMs >= DASH_MS ? 120 * eased(Easing::InQuad, (m_timeMs - DASH_MS) / (DROP_MS - DASH_MS)) : 0);
+    float brightness = (0.7f + 0.5f * build) * (0.6f + 0.4f * fadeIn);
+    updateStreaks(dt, rate, brightness);
 
-    // --- logo: the last two beats, drawn in while it settles onto the menu's ---
-    bool logo = beatPos >= LOGO_BEAT;
-    m_logo->setVisible(logo);
-    if (logo) {
-        float p = std::clamp((beatPos - LOGO_BEAT) / LOGO_BEATS, 0.f, 1.f);
-        float container = SCALE_START - SCALE_ADJUST * 0.25f * eased(Easing::InQuad, p);
-        float inner = SCALE_START - SCALE_ADJUST * eased(Easing::InQuint, (p - 0.7f) / 0.3f);
-        float kick = 1 + 0.04f * std::pow(1 - phase, 3.f);
-        m_logoContainer->setScale(container * kick);
-        m_logo->setScale(inner);
-        drawLogo(p);
-    }
+    updateCube(dt);
+    updateText();
 
     // --- reveal, on the drop ---
-    if (beatPos >= REVEAL_BEAT) reveal();
+    if (m_timeMs >= DROP_MS) reveal();
 }
 
 } // namespace lazer
