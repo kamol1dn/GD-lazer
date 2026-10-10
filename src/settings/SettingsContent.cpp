@@ -326,6 +326,19 @@ void buildSettings(SettingsOverlay* overlay, MenuLayer* menu, MenuBackground* ba
         [mod](float v) { mod->setSettingValue<int64_t>("ui-sound-volume", int64_t(std::round(v * 100))); },
         percent
     ));
+#if defined(GEODE_IS_WINDOWS) || defined(GEODE_IS_MACOS)
+    auto wheelRow = ToggleRow::create(
+        "Scroll to change volume", w, k,
+        [mod] { return mod->getSettingValue<bool>("scroll-volume"); },
+        [mod] {
+            bool v = !mod->getSettingValue<bool>("scroll-volume");
+            mod->setSettingValue<bool>("scroll-volume", v);
+            return v;
+        }
+    );
+    wheelRow->setTooltip("The mouse wheel turns the music up and down wherever nothing else scrolls, and anywhere in the menus with Alt held. Scroll over the effects or interface meter to change that one.");
+    overlay->addRow(wheelRow);
+#endif
     lastPageName.clear();
     for (int page : pagesFor(Home::Audio)) addGDPage(page);
     overlay->addSubsection("Songs");

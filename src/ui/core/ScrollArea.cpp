@@ -1,6 +1,7 @@
 #include "ScrollArea.hpp"
 
 #include "Easing.hpp"
+#include "../overlays/VolumeOverlay.hpp"
 
 #include <Geode/Geode.hpp>
 
@@ -81,6 +82,7 @@ bool ScrollArea::shownOnScreen() {
 
 void ScrollArea::scrollWheel(float y, float) {
     if (!shownOnScreen() || !containsWorldPoint(geode::cocos::getMousePos())) return;
+    volume::markWheelHandled();
     // Positive = scroll down. Cap each event at a few notches so a fast flick
     // (or a free-spinning wheel) can't fling the list to the end.
     float notches = std::clamp(y / UNITS_PER_NOTCH, -3.f, 3.f);

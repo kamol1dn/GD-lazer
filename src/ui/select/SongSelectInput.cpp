@@ -4,6 +4,7 @@
 #include "../core/MenuCursor.hpp"
 #include "../core/Theme.hpp"
 #include "../overlays/Dialog.hpp"
+#include "../overlays/VolumeOverlay.hpp"
 
 #include <algorithm>
 
@@ -237,6 +238,7 @@ void SongSelect::scrollWheel(float y, float) {
         return;
     }
     // Positive = down; one notch moves about one and a half panels.
+    volume::markWheelHandled();
     float notches = std::clamp(y / 12.f, -3.f, 3.f);
     m_scrollTarget += notches * (m_panelH + m_spacing) * 1.5f;
 }

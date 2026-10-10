@@ -292,6 +292,16 @@
 				"ios"
 			]
 		},
+		"scroll-volume": {
+			"type": "bool",
+			"name": "Scroll to change volume",
+			"description": "Like osu!: the mouse wheel turns the music up and down wherever nothing else scrolls in Lazer's screens, and anywhere in the menus with Alt held. Meters for the music, effects and interface sounds pop in at the left while you do; scroll over one to change that one.",
+			"default": true,
+			"platforms": [
+				"win",
+				"mac"
+			]
+		},
 		"custom-cursor": {
 			"type": "bool",
 			"name": "osu! cursor",
