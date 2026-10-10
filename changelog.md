@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.6.4
+
+- Scroll to change the volume, like osu!: the mouse wheel turns the music up and down anywhere nothing else scrolls in Lazer's screens, and anywhere outside the editor with Alt held. osu!'s meters slide in at the left while you do (effects, music, interface sounds): scroll over one to change that one; the first notch only shows them. Windows and Mac; off in Audio settings if you'd rather not (thanks phsrp for asking)
+- "Your levels" and "your lists" show other mods' buttons from GD's "my levels" screen: GDShare's import is an "import" tab next to "new level" (thanks silenceglobally and Gilsonbro for asking)
+- Gauntlets are song select: the pack screen with each gauntlet unfolding into its five levels, played in order, with the chest to claim once all five are beaten
+- The daily, weekly and event levels are song select: the current level on top with the time left, the reward to claim once it's beaten and GD's skip to a newer one, and the safe's past levels after it
+- The intro is cut to GD's own Dash instead of osu!'s theme, under two seconds: the bar before the drop, with streaks rushing past like a level flying by, your cube dashing in with a trail in your colours as the voice says "Geometry Dash", the name written in its wake, and the drop as the flash that shows the menu; Dash plays on as the menu's first song, and the cursor echoes the song's voice as it's heard
+- The cursor means its last nag: shaken past it, it switches itself off (the osu! cursor setting) until you turn it on again
+
 ## v0.6.3
 
 - Windows: updating from v0.6.1 or v0.6.2 fails with the file "in use" (fixed below, but the fix only applies once you have it). Update by hand this once: close GD, download kamol1dn.lazer-ui.geode from the releases page and put it in place of the one in your geode/mods folder (thanks Luchatounet for the report)
