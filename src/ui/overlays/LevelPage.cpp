@@ -468,6 +468,10 @@ void LevelPage::downloadFailed() {
 
 void LevelPage::goBack() {
     if (m_leaving) return;
+    // GD's back does nothing while a scene fades (the pop is refused) or while
+    // it starts the level: leaving then left this page dead, deaf to every
+    // press after (#52). A closed page tries again next frame.
+    if (CCDirector::get()->getIsTransitioning() || m_owner->m_isBusy) return;
     m_leaving = true;
     if (!m_vanilla) sfx::play(sfx::sound::WAVE_POP_OUT);
     m_owner->onBack(nullptr);

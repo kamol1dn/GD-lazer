@@ -130,8 +130,9 @@ class $modify(LazerLevelListing, LevelBrowserLayer) {
 
     void keyDown(cocos2d::enumKeyCodes key, double timestamp) {
         if (auto page = m_fields->page) {
-            // GD's arrow keys page through its hidden list: nothing else applies here.
-            if (key == KEY_Escape) page->goBack();
+            // GD's arrow keys page through its hidden list: nothing else applies
+            // here. Escape as GD's back (see LevelPageHooks.cpp).
+            if (key == KEY_Escape) CCLayer::keyDown(key, timestamp);
             return;
         }
         LevelBrowserLayer::keyDown(key, timestamp);

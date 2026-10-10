@@ -227,7 +227,8 @@ void LevelListingOverlay::openItem(CCObject* item) {
 }
 
 void LevelListingOverlay::goBack() {
-    if (m_leaving) return;
+    // The scene can't change while one fades in: wait for it (#52).
+    if (m_leaving || CCDirector::get()->getIsTransitioning()) return;
     m_leaving = true;
     if (m_input) m_input->defocus();
     sfx::play(sfx::sound::WAVE_POP_OUT);

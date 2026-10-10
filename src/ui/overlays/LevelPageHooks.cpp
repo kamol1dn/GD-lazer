@@ -108,8 +108,11 @@ class $modify(LazerLevelPage, LevelInfoLayer) {
     void keyDown(cocos2d::enumKeyCodes key, double timestamp) {
         auto page = m_fields->page;
         if (page && !page->vanillaShown()) {
-            // GD's keys work its hidden buttons: only escape applies here.
-            if (key == KEY_Escape) page->goBack();
+            // GD's keys work its hidden buttons: only escape applies here, as
+            // GD's back: CCLayer::keyDown makes it a back press, which goes to
+            // what's on top first (a popup, comments, a profile) and is held
+            // back while a scene fades.
+            if (key == KEY_Escape) CCLayer::keyDown(key, timestamp);
             return;
         }
         LevelInfoLayer::keyDown(key, timestamp);
