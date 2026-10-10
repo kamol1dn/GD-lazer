@@ -433,6 +433,13 @@ void SongSelect::loadLevel() {
     FMODAudioEngine::sharedEngine()->stopAndRemoveMusic(0);
     m_previewPath.clear();
 
+    // Progress goes to the level played, and GD only keeps its own saved
+    // copy: a fetched copy or a replaced one would lose it.
+    if (m_loaderLevel->m_levelType != GJLevelType::Main) {
+        auto saved = GameLevelManager::sharedState()->getSavedLevel(m_loaderLevel->m_levelID.value());
+        if (saved && saved != m_loaderLevel.data() && !std::string(saved->m_levelString).empty()) m_loaderLevel = saved;
+    }
+
     // Mods hooking PlayLayer::init run now too, not at the push.
     m_levelScene = PlayLayer::scene(m_loaderLevel, false, false);
     m_levelLoad = LevelLoad::Loaded;
@@ -544,12 +551,20 @@ void SongSelect::updateDownloads(float dt) {
 void SongSelect::levelDownloadFinished(GJGameLevel* level) {
     auto glm = GameLevelManager::sharedState();
     if (glm->m_levelDownloadDelegate == this) glm->m_levelDownloadDelegate = nullptr;
-    // GD may hand back a fresh copy rather than the saved level: keep its data.
-    if (level && m_loaderLevel && level != m_loaderLevel.data()
-        && level->m_levelID.value() == m_loaderLevel->m_levelID.value()
-        && std::string(m_loaderLevel->m_levelString).empty()) {
-        m_loaderLevel->m_levelString = level->m_levelString;
+    if (!level || !m_loaderLevel || level == m_loaderLevel.data()
+        || level->m_levelID.value() != m_loaderLevel->m_levelID.value()) return;
+    // GD saves a downloaded level as a new object (GameLevelManager::saveLevel
+    // gives it the old copy's progress) and keeps only that one: play it, or
+    // the attempt's progress goes to a copy GD no longer saves (#55, #61).
+    if (glm->getSavedLevel(level->m_levelID.value()) == level) {
+        for (auto& entry : m_entries) {
+            if (entry.level == m_loaderLevel) entry.level = level;
+        }
+        m_loaderLevel = level;
+        return;
     }
+    // A copy GD didn't save: keep its data.
+    if (std::string(m_loaderLevel->m_levelString).empty()) m_loaderLevel->m_levelString = level->m_levelString;
 }
 
 void SongSelect::levelDownloadFailed(int) {
