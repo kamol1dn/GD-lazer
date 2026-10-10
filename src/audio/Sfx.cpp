@@ -74,13 +74,14 @@ namespace {
         return load(pathFor(name), false);
     }
 
-    FMOD::Channel* playSound(FMOD::Sound* sound, float frequency, float volume) {
+    FMOD::Channel* playSound(FMOD::Sound* sound, float frequency, float volume, unsigned startMs = 0) {
         auto target = group();
         if (!sound || !target) return nullptr;
         FMOD::Channel* channel = nullptr;
         if (FMODAudioEngine::sharedEngine()->m_system->playSound(sound, target, true, &channel) != FMOD_OK || !channel) return nullptr;
         channel->setVolume(volume);
         channel->setPitch(frequency);
+        if (startMs > 0) channel->setPosition(startMs, FMOD_TIMEUNIT_MS);
         channel->setPaused(false);
         return channel;
     }
@@ -121,10 +122,10 @@ void preloadFile(std::string const& path) {
     load(path, true);
 }
 
-FMOD::Channel* playCueFile(std::string const& path) {
+FMOD::Channel* playCueFile(std::string const& path, unsigned startMs) {
     float volume = uiVolume();
     if (volume <= 0.f) return nullptr;
-    return playSound(load(path, true), 1.f, volume);
+    return playSound(load(path, true), 1.f, volume, startMs);
 }
 
 void hover(char const* name) {

@@ -227,7 +227,7 @@ bool MusicPlayer::introTrackPossible() const {
     return enabled() && !radioWanted() && !m_blocked.contains(officialSongID(INTRO_AUDIO));
 }
 
-bool MusicPlayer::startIntroTrack() {
+bool MusicPlayer::startIntroTrack(unsigned startMs) {
     if (!introTrackPossible()) return false;
     if (m_tracks.empty()) rebuildPlaylist();
     int id = officialSongID(INTRO_AUDIO);
@@ -239,7 +239,7 @@ bool MusicPlayer::startIntroTrack() {
     log::info("Intro starts Dash (held: {})", m_introHold);
     m_introHold = false;
     m_radio = false;
-    play(it - m_tracks.begin(), Direction::None, 0, 0.f);
+    play(it - m_tracks.begin(), Direction::None, startMs, 0.f);
     return true;
 }
 

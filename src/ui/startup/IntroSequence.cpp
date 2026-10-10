@@ -15,25 +15,26 @@ namespace lazer {
 
 namespace {
     // Dash by MDK as it ships with GD (Resources/Dash.mp3), measured from the
-    // file: 128 BPM in 4/4, the first beat at 1.149 s with a faint pad from
-    // 0.21 s before it, the voice saying "Geometry Dash" at 15.0 s into the
-    // first drop at 16.149 s.
+    // file: 128 BPM in 4/4, the first beat at 1.149 s, the voice saying
+    // "Geometry Dash" at 15.0 s into the first drop at 16.149 s (bar 9).
     constexpr float BPM = 128;
     constexpr float BEAT_MS = 60000.f / BPM; // 468.75
     constexpr float FIRST_BEAT_MS = 1149;
-    constexpr float PAD_MS = 210;
     float beat(float n) { return FIRST_BEAT_MS + n * BEAT_MS; }
 
-    // What's on screen, in beats from the first (two bars: any longer and it
-    // drags on every start).
-    constexpr int ICONS_BEAT = 0;  // bar 1: the icons punch in, one a beat, triangles glitching behind
-    constexpr int LOGO_BEAT = 4;   // bar 2: the logo draws itself in, down to its place on the menu
-    constexpr int REVEAL_BEAT = 8; // bar 3, on its downbeat: the flash, and the menu under it
+    // What's on screen, in beats from the song's first. One bar, the one
+    // before the drop: longer dragged on every start.
+    constexpr int START_BEAT = 28;  // bar 8: the song starts here
+    constexpr int ICONS_BEAT = 28;  // the icons punch in, two a beat, triangles glitching behind
+    constexpr int LOGO_BEAT = 30;   // the logo draws itself in, down to its place on the menu
+    constexpr int REVEAL_BEAT = 32; // the drop: the flash, and the menu under it
     constexpr float LOGO_BEATS = REVEAL_BEAT - LOGO_BEAT;
+    constexpr int ICONS_PER_BEAT = 2;
+    constexpr unsigned START_MS = static_cast<unsigned>(FIRST_BEAT_MS + START_BEAT * BEAT_MS);
 
-    // The notes of the opening arpeggio over the first bar, in 16ths from the
-    // first beat (the song's onsets): a burst of triangles on each.
-    constexpr std::array<int, 10> ONSETS {{0, 1, 3, 4, 7, 8, 9, 11, 12, 14}};
+    // The stabs and kicks of that bar, in 16ths from the song's first beat
+    // (its onsets): a burst of triangles on each.
+    constexpr std::array<int, 6> ONSETS {{112, 113, 115, 116, 118, 120}};
 
     constexpr float ICON_SPACING = 200;
     constexpr float PUNCH_MS = 250; // an icon's punch-in
@@ -215,9 +216,9 @@ void IntroSequence::setMusicVolume(float volume) {
 
 void IntroSequence::start() {
     m_started = true;
-    m_musicTrack = MusicPlayer::get().startIntroTrack();
+    m_musicTrack = MusicPlayer::get().startIntroTrack(START_MS);
     if (!m_musicTrack) {
-        m_cue = sfx::playCueFile(dashPath());
+        m_cue = sfx::playCueFile(dashPath(), START_MS);
         if (m_cue) m_cue->getVolume(&m_cueVolume);
         log::info("Intro plays its own copy of Dash ({})", m_cue ? "ok" : "failed to open");
     }
@@ -342,6 +343,7 @@ void IntroSequence::update(float dt) {
     }
 
     float ms = dt * 1000.f;
+    if (m_lastMs < 0) m_timeMs = START_MS; // the song's time, from where it starts
     m_lastMs = m_timeMs;
     m_timeMs += ms;
     // The song is the clock: a long frame (the menu's textures loading, the
@@ -384,22 +386,22 @@ void IntroSequence::update(float dt) {
     float phase = beatPos - std::floor(beatPos);         // how far into the current beat
     float pulse = 1 + 0.16f * std::pow(1 - phase, 3.f);  // a kick on every beat, easing off
 
-    // --- triangles: a trickle from the pad, and a burst on every note, behind the icons ---
-    bool triangles = m_timeMs >= PAD_MS && beatPos < LOGO_BEAT;
+    // --- triangles: a trickle, and a burst on every stab, behind the icons ---
+    bool triangles = beatPos >= ICONS_BEAT && beatPos < LOGO_BEAT;
     if (triangles) {
         for (int n : ONSETS) {
             float t = beat(n / 4.f);
             if (m_lastMs < t && m_timeMs >= t) spawnTriangles(6, 110);
         }
     }
-    updateTriangles(ms, triangles, beatPos < 0 ? 90.f : 45.f);
+    updateTriangles(ms, triangles, 45.f);
 
-    // --- icons: bar 1, one punching in on each beat ---
+    // --- icons: two punching in on each beat ---
     bool icons = beatPos >= ICONS_BEAT && beatPos < LOGO_BEAT;
     m_icons->setVisible(icons);
     if (icons) {
         for (size_t i = 0; i < m_iconHolders.size(); i++) {
-            float age = m_timeMs - beat(ICONS_BEAT + i);
+            float age = m_timeMs - beat(ICONS_BEAT + static_cast<float>(i) / ICONS_PER_BEAT);
             auto holder = m_iconHolders[i];
             holder->setVisible(age >= 0);
             if (age < 0) continue;
@@ -407,10 +409,10 @@ void IntroSequence::update(float dt) {
         }
         layoutIcons(ICON_SPACING);
         // osu! eases the row down while it shows.
-        m_iconsScale->setScale(1.f - 0.2f * (beatPos / LOGO_BEAT));
+        m_iconsScale->setScale(1.f - 0.2f * ((beatPos - ICONS_BEAT) / (LOGO_BEAT - ICONS_BEAT)));
     }
 
-    // --- logo: bar 2, drawn in while it settles onto the menu's ---
+    // --- logo: the last two beats, drawn in while it settles onto the menu's ---
     bool logo = beatPos >= LOGO_BEAT;
     m_logo->setVisible(logo);
     if (logo) {
@@ -423,7 +425,7 @@ void IntroSequence::update(float dt) {
         drawLogo(p);
     }
 
-    // --- reveal, on bar 3 ---
+    // --- reveal, on the drop ---
     if (beatPos >= REVEAL_BEAT) reveal();
 }
 

@@ -12,14 +12,13 @@
 namespace lazer {
 
 // The game-start intro, after osu!'s IntroTriangles (osu.Game/Screens/Menu/IntroTriangles.cs),
-// cut to the opening of Dash (MDK, the last main level's song, GD's own
-// copy): over its first bar GD's cube, spike, orb and trigger punch in a beat
-// each (osu!'s ruleset icons) with triangles glitching on every note of the
-// arpeggio behind them; over the second the logo draws itself in and shrinks
-// to its place on the menu; and on bar three's downbeat (4.9 s) a flash
-// reveals the menu, with the song playing on as its first track (the first
-// drop, and the voice before it, land on the menu with the cursor saying its
-// lines; see quips::followSong).
+// cut to Dash (MDK, the last main level's song, GD's own copy) from the bar
+// before its first drop: GD's cube, spike, orb and trigger punch in two a beat
+// on its stabs (osu!'s ruleset icons) with triangles glitching behind them,
+// the logo draws itself in and shrinks to its place on the menu over the last
+// two beats as the voice says "Geometry Dash" (the cursor says it too; see
+// quips::followSong), and the drop is the flash that reveals the menu, with
+// the song playing on as its first track.
 //
 // The song is the clock: the timeline follows the music channel's position.
 // A tap or Escape skips to the reveal.

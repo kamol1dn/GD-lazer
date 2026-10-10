@@ -63,9 +63,9 @@ void preload(char const* name);
 FMOD::Channel* playCue(char const* name);
 
 // The same for an audio file by path (one of GD's songs), streamed rather
-// than decoded whole. preloadFile opens it ahead of time.
+// than decoded whole, from `startMs` in. preloadFile opens it ahead of time.
 void preloadFile(std::string const& path);
-FMOD::Channel* playCueFile(std::string const& path);
+FMOD::Channel* playCueFile(std::string const& path, unsigned startMs = 0);
 
 // Plays `name` at `frequency` (speed and pitch, like osu!'s channel Frequency),
 // randomised by +-pitchVariation. Repeats of the same sound within 20 ms are

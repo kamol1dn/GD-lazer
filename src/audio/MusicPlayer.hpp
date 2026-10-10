@@ -58,10 +58,10 @@ public:
     static std::string introFile();
     // Whether startIntroTrack() can: the player on, no radio, Dash not blocked.
     bool introTrackPossible() const;
-    // Plays Dash from the top on the music channel as the intro begins, so it
-    // carries on as the menu's first song. False when it can't (see above, or
-    // the file missing): the hold stays for releaseIntro() then.
-    bool startIntroTrack();
+    // Plays Dash from `startMs` on the music channel as the intro begins, so
+    // it carries on as the menu's first song. False when it can't (see above,
+    // or the file missing): the hold stays for releaseIntro() then.
+    bool startIntroTrack(unsigned startMs);
     // Starts the current song from the top. Returns false if there is no song
     // of ours to play (GD's own menu loop is on the channel then).
     bool releaseIntro();
