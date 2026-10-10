@@ -83,10 +83,27 @@ SongSelect::Panel& SongSelect::makePanel(size_t visibleIndex) {
     strip->setCornerRadii(CORNER * k, 0, CORNER * k, 0);
     strip->setAnchorPoint({0, 0});
     root->addChild(strip, 3);
+    CCSprite* gauntletIcon = header && pack && pack->gauntlet && !pack->frame.empty()
+        ? CCSprite::createWithSpriteFrameName(pack->frame.c_str()) : nullptr;
     if (compact) {
         auto face = difficultyFace(e, ph * 0.62f);
         face->setPosition({stripW / 2, ph / 2});
         root->addChild(face, 4);
+        if (e.locked) {
+            // A gauntlet's level not reached yet: a lock over its face.
+            if (auto rgba = dynamic_cast<CCRGBAProtocol*>(face)) rgba->setOpacity(90);
+            auto lock = makeIcon(icon::LOCK, ph * 0.34f);
+            lock->setColor({255, 255, 255});
+            lock->setPosition({stripW / 2, ph / 2});
+            root->addChild(lock, 5);
+        }
+    } else if (gauntletIcon) {
+        // A gauntlet shows GD's badge for it in place of a difficulty.
+        auto size = gauntletIcon->getContentSize();
+        float fitTo = ph * 0.8f;
+        if (size.width > 0 && size.height > 0) gauntletIcon->setScale(fitTo / std::max(size.width, size.height));
+        gauntletIcon->setPosition({stripW / 2, ph / 2});
+        root->addChild(gauntletIcon, 4);
     } else {
         auto face = difficultyFace(e, ph * 0.56f);
         face->setPosition({stripW / 2, ph * 0.6f});
@@ -107,7 +124,7 @@ SongSelect::Panel& SongSelect::makePanel(size_t visibleIndex) {
         // The set panel: the pack's name in its own colour, how many of its
         // levels are done with a bar in the pack's colour, the reward's state,
         // and a chevron that turns as the pack opens.
-        auto tag = makeText(pack && pack->list ? "LIST" : "MAP PACK", Weight::SemiBold, 10 * k);
+        auto tag = makeText(pack && pack->list ? "LIST" : pack && pack->gauntlet ? "GAUNTLET" : "MAP PACK", Weight::SemiBold, 10 * k);
         tag->setColor(accent);
         tag->setAnchorPoint({0, 0.5f});
         tag->setPosition({x + 1 * k, ph * 0.88f});
@@ -167,12 +184,14 @@ SongSelect::Panel& SongSelect::makePanel(size_t visibleIndex) {
         }
     } else if (compact) {
         auto title = makeText(e.name, Weight::SemiBold, 18 * k);
+        if (e.locked) title->setColor(theme::LIGHT1);
         title->setAnchorPoint({0, 0.5f});
         title->setPosition({x, ph * 0.68f});
         fit(title, maxW);
         root->addChild(title, 4);
 
         std::vector<std::pair<char const*, std::string>> info;
+        if (e.locked) info.push_back({icon::LOCK, "locked"});
         info.push_back({icon::USER, e.creator});
         if (!e.platformer) info.push_back({icon::CLOCK, levels::lengthName(e.length)});
         if (e.coins > 0) info.push_back({icon::COINS, fmt::format("{}/{}", e.coinsCollected, e.coins)});
@@ -197,13 +216,37 @@ SongSelect::Panel& SongSelect::makePanel(size_t visibleIndex) {
         root->addChild(creator, 4);
 
         std::vector<std::pair<char const*, std::string>> info;
+        if (e.dailyID > 0) {
+            // A daily (weekly, event) level: which one it was.
+            auto type = levels::timedTypeOf(e.dailyID);
+            char const* glyph = type == GJTimedLevelType::Weekly ? icon::CALENDAR_WEEK
+                              : type == GJTimedLevelType::Event ? icon::BOLT : icon::CALENDAR_DAY;
+            info.push_back({glyph, fmt::format("{} #{}", levels::timelyName(type), levels::timelyNumber(e.dailyID))});
+        }
         if (!e.platformer) info.push_back({icon::CLOCK, levels::lengthName(e.length)});
         if (e.coins > 0) info.push_back({icon::COINS, fmt::format("{}/{}", e.coinsCollected, e.coins)});
         if (!e.platformer) info.push_back({e.normalPercent >= 100 ? icon::CHECK : nullptr, fmt::format("{}%", e.normalPercent)});
         else if (e.normalPercent >= 100) info.push_back({icon::CHECK, e.bestTime > 0 ? formatTime(e.bestTime) : "completed"});
         auto row = infoRow(info, 12 * k, theme::LIGHT1);
+        if (row->getContentSize().width > maxW) row->setScale(maxW / row->getContentSize().width);
         row->setPosition({x, ph * 0.2f});
         root->addChild(row, 4);
+
+        if (timelyMode() && m_timelyRow && m_visible[visibleIndex] == 0) {
+            // The current one: a chip over the picture, like a pack's reward.
+            bool claim = m_timely.claimable;
+            char const* text = claim ? "reward!" : m_timely.completed ? "beaten" : "current";
+            auto chip = infoRow({{claim ? icon::GIFT : m_timely.completed ? icon::CHECK : icon::CLOCK, text}}, 12 * k,
+                                claim ? ccColor3B {255, 214, 76} : theme::CONTENT1);
+            float chipW = chip->getContentSize().width;
+            float chipX = pw * 0.66f - chipW;
+            auto pill = RoundedBox::create({chipW + 8 * k, 22 * k}, 11 * k, {0, 0, 0, 140});
+            pill->setAnchorPoint({0, 0.5f});
+            pill->setPosition({chipX - 10 * k, ph / 2});
+            root->addChild(pill, 4);
+            chip->setPosition({chipX - 4 * k, ph / 2});
+            root->addChild(chip, 5);
+        }
     }
 
     auto& panel = m_panels[visibleIndex];

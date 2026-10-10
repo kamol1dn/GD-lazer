@@ -46,18 +46,19 @@ void SongSelect::updateWedge(bool animate) {
                 retry = true;
             } else if (m_query.empty()) text = m_onlineLists ? "no lists here" : "no levels here";
         } else if (packMode()) {
-            auto state = packs::state();
+            auto state = packListState();
+            std::string what = gauntletMode() ? "gauntlets" : "map packs";
             if (state == packs::State::Loading || state == packs::State::Unloaded) {
-                text = "loading map packs...";
+                text = "loading " + what + "...";
                 spin = true;
             } else if (state == packs::State::Failed) {
-                text = "couldn't load the map packs";
+                text = "couldn't load the " + what;
                 retry = true;
-            } else if (!m_query.empty() && packs::loadingLevels()) {
-                text = fmt::format("searching the packs' levels... {}%", static_cast<int>(packs::levelsProgress() * 100));
+            } else if (!m_query.empty() && packLevelsLoading()) {
+                text = fmt::format("searching their levels... {}%", static_cast<int>(packLevelsProgress() * 100));
                 spin = true;
-            } else if (m_query.empty() && m_group == Group::Liked) text = "no map packs completed yet";
-            else if (m_query.empty() && m_group == Group::Official) text = "every map pack is complete!";
+            } else if (m_query.empty() && m_group == Group::Liked) text = "no " + what + " completed yet";
+            else if (m_query.empty() && m_group == Group::Official) text = gauntletMode() ? "every gauntlet is complete!" : "every map pack is complete!";
         } else if (m_entries.empty()) text = "no levels yet";
         else if (m_query.empty() && m_group == Group::Liked) text = "no hearted levels yet";
         else if (m_query.empty() && m_folder != 0) text = "nothing in this folder";
@@ -87,8 +88,8 @@ void SongSelect::updateWedge(bool animate) {
         }
         if (retry) {
             addButton(m_wedgeButtons, m_wedge, icon::ROTATE, "try again", {40 * k, H - 104 * k}, 30 * k, theme::COLOUR3, [this] {
-                if (onlineMode()) browse::refresh();
-                else packs::load();
+                if (timelyMode()) timely::retry(timelyType());
+                loadPackList();
                 this->updateWedge(false);
             }, 0);
         }
@@ -138,8 +139,9 @@ void SongSelect::updateWedge(bool animate) {
 
     // Heart (GD's favourite) and delete: saved levels only, like the level page
     // (online, the ones you have a saved copy of; nothing to delete from there).
+    // GD's own copies of a daily or a gauntlet's level aren't yours to keep.
     bool saved = !onlineMode() || levels::isSaved(e.level.data());
-    if (!e.official && e.pack < 0 && saved) {
+    if (!e.official && e.pack < 0 && saved && !levels::specialCopy(e.level.data())) {
         float iconH = 30 * k;
         CCSize size {iconH * 1.4f, iconH};
         // Icon only: a small square-ish pill, icon centred.
@@ -174,7 +176,7 @@ void SongSelect::updateWedge(bool animate) {
                         fmt::format("{}  -  {} level{}", list ? "level list" : "map pack", total, total == 1 ? "" : "s")});
     } else {
         line.push_back({icon::MUSIC, e.songArtist.empty() ? e.songTitle : e.songTitle + "  -  " + e.songArtist});
-        if (pack) line.push_back({list ? icon::LAYERS : icon::BOXES, pack->name});
+        if (pack) line.push_back({list ? icon::LAYERS : pack->gauntlet ? icon::DUNGEON : icon::BOXES, pack->name});
     }
     auto song = infoRow(line, 17 * k, theme::CONTENT2);
     song->setPosition({x0 + 2 * k, H - 76 * k});
@@ -189,7 +191,16 @@ void SongSelect::updateWedge(bool animate) {
 
     // Difficulty and stats.
     float statsY = H - 140 * k;
-    auto face = difficultyFace(e, 34 * k);
+    CCNode* face = nullptr;
+    if (e.packHeader && pack && pack->gauntlet && !pack->frame.empty()) {
+        // A gauntlet: GD's badge for it in place of a difficulty.
+        if (auto badge = CCSprite::createWithSpriteFrameName(pack->frame.c_str())) {
+            auto size = badge->getContentSize();
+            if (size.width > 0 && size.height > 0) badge->setScale(40 * k / std::max(size.width, size.height));
+            face = badge;
+        }
+    }
+    if (!face) face = difficultyFace(e, 34 * k);
     face->setPosition({x0 + 17 * k, statsY});
     m_wedge->addChild(face, 1);
     std::vector<std::pair<char const*, std::string>> stats;
@@ -199,6 +210,7 @@ void SongSelect::updateWedge(bool animate) {
         int done = pack ? std::min(pack->completed, total) : 0;
         if (e.stars > 0) stats.push_back({list ? icon::GEM : icon::STAR, "+" + std::to_string(e.stars)});
         if (e.coins > 0) stats.push_back({icon::COINS, "+" + std::to_string(e.coins)});
+        if (pack && pack->gauntlet) stats.push_back({icon::GIFT, pack->claimed ? "chest opened" : "a chest"});
         stats.push_back({total > 0 && done >= total ? icon::CHECK : nullptr, fmt::format("{}/{} done", done, total)});
         if (list) {
             stats.push_back({icon::CLOUD_DOWN, std::to_string(pack->downloads)});
@@ -209,6 +221,13 @@ void SongSelect::updateWedge(bool animate) {
         if (e.stars > 0) stats.push_back({rewardIcon(e), std::to_string(e.stars)});
         if (!e.platformer) stats.push_back({icon::CLOCK, levels::lengthName(e.length)});
         if (e.coins > 0) stats.push_back({icon::COINS, fmt::format("{}/{}", e.coinsCollected, e.coins)});
+        if (e.dailyID > 0) {
+            auto type = levels::timedTypeOf(e.dailyID);
+            char const* glyph = type == GJTimedLevelType::Weekly ? icon::CALENDAR_WEEK
+                              : type == GJTimedLevelType::Event ? icon::BOLT : icon::CALENDAR_DAY;
+            stats.push_back({glyph, fmt::format("{} #{}", levels::timelyName(type), levels::timelyNumber(e.dailyID))});
+        }
+        if (e.locked) stats.push_back({icon::LOCK, "locked"});
         if (!e.official) stats.push_back({icon::ID_CARD, std::to_string(e.id)});
     }
     auto statsRow = infoRow(stats, 17 * k, theme::CONTENT1);
@@ -297,8 +316,9 @@ void SongSelect::buildDetails(float top, float bottom) {
             if (pack->state == packs::State::Loaded) {
                 for (auto const& l : pack->levels) {
                     bool beaten = l.normalPercent >= 100;
-                    auto row = infoRow({{beaten ? icon::CHECK : icon::XMARK, l.name}, {nullptr, fmt::format("{}%", l.normalPercent)}},
-                                       15 * k, beaten ? theme::CONTENT1 : theme::CONTENT2);
+                    auto row = infoRow({{beaten ? icon::CHECK : l.locked ? icon::LOCK : icon::XMARK, l.name},
+                                        {nullptr, l.locked ? "locked" : fmt::format("{}%", l.normalPercent)}},
+                                       15 * k, beaten ? theme::CONTENT1 : l.locked ? theme::LIGHT1 : theme::CONTENT2);
                     if (row->getContentSize().width > maxW) row->setScale(maxW / row->getContentSize().width);
                     add(row, 0, y);
                     y -= 24 * k;
@@ -327,6 +347,8 @@ void SongSelect::buildDetails(float top, float bottom) {
             std::vector<std::pair<char const*, std::string>> reward;
             if (list) {
                 if (pack->diamonds > 0) reward.push_back({icon::GEM, fmt::format("{} diamond{}", pack->diamonds, pack->diamonds == 1 ? "" : "s")});
+            } else if (pack->gauntlet) {
+                reward.push_back({icon::GIFT, "a chest"});
             } else {
                 if (pack->stars > 0) reward.push_back({icon::STAR, fmt::format("{} star{}", pack->stars, pack->stars == 1 ? "" : "s")});
                 if (pack->coins > 0) reward.push_back({icon::COINS, fmt::format("{} coin{}", pack->coins, pack->coins == 1 ? "" : "s")});
@@ -335,7 +357,7 @@ void SongSelect::buildDetails(float top, float bottom) {
             add(infoRow(reward, 15 * k, theme::CONTENT1), 0, y);
             y -= 30 * k;
             if (canClaimPack(*pack)) {
-                button(icon::GIFT, "claim reward", theme::COLOUR3, [this, index] { this->claimPack(index); });
+                button(icon::GIFT, pack->gauntlet ? "open the chest" : "claim reward", theme::COLOUR3, [this, index] { this->claimPack(index); });
                 y -= 40 * k;
             } else {
                 std::string note;
@@ -344,6 +366,8 @@ void SongSelect::buildDetails(float top, float bottom) {
                         int need = std::max(1, pack->levelsToClaim);
                         note = fmt::format("beat {} of its levels, then claim it on GD's list page", need);
                     }
+                } else if (pack->gauntlet) {
+                    note = pack->claimed ? "chest opened" : "beat its five levels, in order, to open the chest";
                 } else note = pack->claimed ? "claimed" : "beat every level in the pack to claim it";
                 if (!note.empty()) {
                     auto label = makeWrappedText(note, 15 * k, maxW, theme::LIGHT1);
@@ -369,11 +393,11 @@ void SongSelect::buildDetails(float top, float bottom) {
         return;
     }
     if (pack) {
-        // One of a pack's (or a list's) levels: its progress on top.
+        // One of a pack's (or a list's, a gauntlet's) levels: its progress on top.
         int index = e.pack;
         int total = static_cast<int>(pack->levelIDs.size());
         int done = std::min(pack->completed, total);
-        section(list ? "list" : "map pack");
+        section(list ? "list" : pack->gauntlet ? "gauntlet" : "map pack");
         auto name = makeText(pack->name, Weight::SemiBold, 15 * k);
         name->setColor(pack->textColor);
         name->setAnchorPoint({0, 0.5f});
@@ -381,11 +405,55 @@ void SongSelect::buildDetails(float top, float bottom) {
         add(name, 0, y);
         y -= 26 * k;
         bar("levels", total > 0 ? done * 100 / total : 0, pack->barColor);
+        if (e.locked) {
+            // A gauntlet's levels open in order.
+            std::string before;
+            for (size_t i = 1; i < pack->levels.size(); i++) {
+                if (pack->levels[i].id == e.id) before = pack->levels[i - 1].name;
+            }
+            auto note = makeWrappedText(before.empty() ? "locked: beat the level before it first" : "locked: beat " + before + " first",
+                                        15 * k, maxW, theme::LIGHT1);
+            add(note, 0, y + 9 * k);
+            y -= note->getScaledContentSize().height + 16 * k;
+        }
         if (canClaimPack(*pack)) {
-            button(icon::GIFT, "claim reward", theme::COLOUR3, [this, index] { this->claimPack(index); });
+            button(icon::GIFT, pack->gauntlet ? "open the chest" : "claim reward", theme::COLOUR3, [this, index] { this->claimPack(index); });
             y -= 40 * k;
         }
         y -= 8 * k;
+    }
+
+    // A daily (weekly, event) level: the current one with its state, or one
+    // from the safe. Either is GD's own copy of the level: beating it counts
+    // as beating that daily, apart from the level played on its own.
+    if (e.dailyID > 0) {
+        auto type = levels::timedTypeOf(e.dailyID);
+        auto name = levels::timelyName(type);
+        bool current = timelyMode() && m_timelyRow && m_visible[m_selected] == 0;
+        section(fmt::format("{} #{}", name, levels::timelyNumber(e.dailyID)).c_str());
+        if (current) {
+            std::string state;
+            if (m_timely.downloading) state = "the level is on its way";
+            else if (m_timely.claimable) state = "beaten! its reward is waiting";
+            else if (m_timely.completed) state = "beaten, reward claimed";
+            else state = fmt::format("the current {} level: beat it for its reward", name);
+            auto label = makeWrappedText(state, 15 * k, maxW, theme::CONTENT1);
+            add(label, 0, y + 9 * k);
+            y -= label->getScaledContentSize().height + 16 * k;
+            if (m_timely.claimable) {
+                button(icon::GIFT, "claim reward", theme::COLOUR3, [this] { this->claimTimely(); });
+                y -= 40 * k;
+            }
+            if (m_timely.skippable) {
+                button(icon::CHEVRON_RIGHT, fmt::format("skip to the new {} level", name), TAB, [this] { this->skipTimely(); });
+                y -= 40 * k;
+            }
+        } else {
+            auto label = makeWrappedText(fmt::format("from the safe: beating it counts as {} #{}, kept apart from the level on its own",
+                                                     name, levels::timelyNumber(e.dailyID)), 15 * k, maxW, theme::LIGHT1);
+            add(label, 0, y + 9 * k);
+            y -= label->getScaledContentSize().height + 16 * k;
+        }
     }
 
     // Progress.

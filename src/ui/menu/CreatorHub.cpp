@@ -111,6 +111,15 @@ class $modify(LazerLevelBrowser, LevelBrowserLayer) {
         if (enabled && lazer::browse::Request::wants(search)) {
             return lazer::SongSelect::onlineScene(lazer::browse::Request::fromSearch(search));
         }
+        // And so is the safe (the past dailies, weeklies, events).
+        if (enabled && search && !search->m_searchIsOverlay) {
+            switch (search->m_searchType) {
+                case SearchType::DailySafe: return lazer::SongSelect::timelyScene(GJTimedLevelType::Daily);
+                case SearchType::WeeklySafe: return lazer::SongSelect::timelyScene(GJTimedLevelType::Weekly);
+                case SearchType::EventSafe: return lazer::SongSelect::timelyScene(GJTimedLevelType::Event);
+                default: break;
+            }
+        }
         return LevelBrowserLayer::scene(search);
     }
 

@@ -37,6 +37,11 @@ struct Pack {
     int completed = 0;             // levels beaten (refresh())
     bool claimed = false;          // reward taken
     std::string search;            // lower-cased name, for filtering
+    // A gauntlet (Gauntlets.hpp): GD's GauntletType, and the frame of its
+    // icon in GD's sheet. Its reward is a chest, its levels open in order.
+    bool gauntlet = false;
+    int gauntletType = 0;
+    std::string frame;
 };
 
 // The list of packs, in GD's order.

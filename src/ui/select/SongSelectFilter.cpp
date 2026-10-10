@@ -91,7 +91,7 @@ void SongSelect::applyFilter() {
         // Under each header: the open pack's levels, and while searching the
         // levels that match, in the pack's order. Searching needs every
         // pack's levels: fetched now, a few packs at a time.
-        if (!onlineMode() && !query.empty() && packs::levelsProgress() < 1.f) packs::loadAllLevels();
+        if (!onlineMode() && !query.empty() && packLevelsProgress() < 1.f) loadAllPackLevels();
         std::vector<size_t> rows;
         for (size_t v : m_visible) {
             rows.push_back(v);
@@ -143,10 +143,10 @@ void SongSelect::applyFilter() {
     else if (m_countLabel) {
         if (packMode()) {
             size_t n = std::count_if(m_visible.begin(), m_visible.end(), [&](size_t i) { return m_entries[i].packHeader; });
-            std::string text = fmt::format("{} map pack{}", n, n == 1 ? "" : "s");
-            if (packs::state() == packs::State::Loading) text += " so far";
-            else if (!query.empty() && packs::loadingLevels()) {
-                text = fmt::format("searching levels... {}%", static_cast<int>(packs::levelsProgress() * 100));
+            std::string text = fmt::format("{} {}{}", n, packWord(), n == 1 ? "" : "s");
+            if (packListState() == packs::State::Loading) text += " so far";
+            else if (!query.empty() && packLevelsLoading()) {
+                text = fmt::format("searching levels... {}%", static_cast<int>(packLevelsProgress() * 100));
             }
             m_countLabel->setString(text.c_str());
         } else {
@@ -194,7 +194,8 @@ void SongSelect::reloadEntries() {
         rebuildOnlineEntries();
         m_hasSelection = false;
     } else if (packMode()) {
-        for (auto& p : packs::all()) packs::refresh(p);
+        if (gauntletMode()) for (auto& p : gauntlets::all()) gauntlets::refresh(p);
+        else for (auto& p : packs::all()) packs::refresh(p);
         rebuildPackEntries();
         m_hasSelection = false; // the old rows are gone: found again by ID
     } else {
@@ -227,6 +228,7 @@ void SongSelect::rebuildPackEntries() {
         h.name = p.name;
         h.creator = p.list ? p.creator : "RobTop";
         h.difficulty = p.difficulty;
+        h.gauntlet = p.gauntlet;
         // A list's reward is in diamonds.
         h.stars = p.list ? p.diamonds : p.stars;
         h.coins = p.coins;
@@ -265,13 +267,13 @@ void SongSelect::rebuildPackEntries() {
 }
 
 void SongSelect::onPacksChanged() {
-    if (m_kind != levels::Kind::MapPacks || m_starting) return;
+    if (!packMode() || onlineMode() || m_starting) return;
     // The list comes a page at a time: it shows once it's all here, so the
     // screen doesn't build and fade in again with every page.
-    if (packs::state() == packs::State::Loading) {
+    if (packListState() == packs::State::Loading) {
         if (m_countLabel) {
-            size_t n = packs::all().size();
-            m_countLabel->setString(fmt::format("{} map pack{} so far", n, n == 1 ? "" : "s").c_str());
+            size_t n = packList().size();
+            m_countLabel->setString(fmt::format("{} {}{} so far", n, packWord(), n == 1 ? "" : "s").c_str());
         }
         return;
     }
@@ -282,14 +284,14 @@ void SongSelect::onPacksChanged() {
     applyFilter();
     refreshDetails();
     restoreExpandedPack();
-    if (m_expandedPack >= 0 && m_expandedPack < static_cast<int>(packs::all().size())
-        && packs::all()[m_expandedPack].state == packs::State::Failed) {
+    if (m_expandedPack >= 0 && m_expandedPack < static_cast<int>(packList().size())
+        && packList()[m_expandedPack].state == packs::State::Failed) {
         cursorSay("the servers said no");
     }
 }
 
 void SongSelect::restoreExpandedPack() {
-    if (!onlineMode() && packs::state() != packs::State::Loaded) return;
+    if (!onlineMode() && packListState() != packs::State::Loaded) return;
     auto& packs = packList();
     if (m_expandedPack >= static_cast<int>(packs.size())) m_expandedPack = -1;
     if (m_expandedPack < 0) {
@@ -355,16 +357,22 @@ void SongSelect::selectPackLevel() {
 
 void SongSelect::claimPack(int pack) {
     if (onlineMode()) return;
-    auto& packs = packs::all();
-    if (pack < 0 || pack >= static_cast<int>(packs.size()) || !packs::canClaim(packs[pack])) return;
+    auto& packs = packList();
+    if (pack < 0 || pack >= static_cast<int>(packs.size()) || !canClaimPack(packs[pack])) return;
     auto& p = packs[pack];
-    packs::claim(p);
-    sfx::play(sfx::sound::DIALOG_OK_SELECT);
-    Dialog::show(icon::GIFT, "Map pack complete!",
-        fmt::format("{} gave you {} star{} and {} coin{}.", p.name, p.stars, p.stars == 1 ? "" : "s",
-                    p.coins, p.coins == 1 ? "" : "s"),
-        {{"Nice", Dialog::Kind::Ok, nullptr}});
-    cursorSay("free stars! well, earned.");
+    if (gauntletMode()) {
+        // The chest: GD's own popup opens it and shows what was in it.
+        gauntlets::claim(p);
+        cursorSay("a chest! what's in it?");
+    } else {
+        packs::claim(p);
+        sfx::play(sfx::sound::DIALOG_OK_SELECT);
+        Dialog::show(icon::GIFT, "Map pack complete!",
+            fmt::format("{} gave you {} star{} and {} coin{}.", p.name, p.stars, p.stars == 1 ? "" : "s",
+                        p.coins, p.coins == 1 ? "" : "s"),
+            {{"Nice", Dialog::Kind::Ok, nullptr}});
+        cursorSay("free stars! well, earned.");
+    }
     // The header's progress and its reward chip change.
     rebuildPackEntries();
     m_hasSelection = false;

@@ -150,7 +150,9 @@ float LevelPage::buildDetails(float y, float x, float w) {
     if (!uploaded.empty()) row("uploaded", uploaded + " ago");
     if (!updated.empty() && updated != uploaded) row("updated", updated + " ago");
     if (level->m_password.value() != 0) row("copyable", level->m_password.value() == 1 ? "free copy" : "with a password");
-    if (level->m_dailyID.value() > 0) row("was", level->m_dailyID.value() > 200000 ? "a weekly level" : "a daily level");
+    if (int daily = level->m_dailyID.value(); daily > 0) {
+        row("timely", fmt::format("{} #{}", levels::timelyName(levels::timedTypeOf(daily)), levels::timelyNumber(daily)));
+    }
     return y;
 }
 

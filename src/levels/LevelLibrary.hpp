@@ -31,10 +31,19 @@ struct Entry {
     int folder = 0;            // GD's saved-level folder (0 = none)
     std::string search;        // lower-cased name, creator and song, for filtering
     bool resolved = false;     // songPath and coinsCollected filled in
-    // Map packs (Kind::MapPacks): a pack's header row (level is null, name is
-    // the pack's) or one of its levels, both with the pack's index.
+    // Map packs (Kind::MapPacks) and gauntlets: a pack's header row (level is
+    // null, name is the pack's) or one of its levels, both with the pack's index.
     int pack = -1;
     bool packHeader = false;
+    // A daily, weekly or event level (GD's "timely" levels): GD's daily ID
+    // (weeklies are 100001 and up, events 200001 and up). GD keeps a copy of
+    // its own for it, with its own progress, apart from the level played
+    // from search or saved (see withSavedCopy).
+    int dailyID = 0;
+    // A gauntlet's level: GD keeps a copy of its own for those too.
+    bool gauntlet = false;
+    // A gauntlet's level that can't be played yet: the one before it isn't beaten.
+    bool locked = false;
 };
 
 // An entry for any level object (a pack's levels, fetched online).
@@ -42,10 +51,16 @@ Entry fromLevel(GJGameLevel* level, bool official);
 
 // Your saved copy of a level carries its data and your progress. GD also
 // keeps nameless stubs for levels you've played but not saved: those only
-// lend their progress to the fetched copy, which is returned.
+// lend their progress to the fetched copy, which is returned. A daily (or
+// weekly, event) level and a gauntlet's level have copies of their own in GD,
+// with their own progress: those are looked up for levels marked as such.
 GJGameLevel* withSavedCopy(GJGameLevel* level);
 // Whether the level object is your saved copy (its data and progress are kept).
 bool isSaved(GJGameLevel* level);
+// Whether the level is one GD keeps a copy of its own for: a daily, weekly or
+// event level (dailyID set) or a gauntlet's. Those aren't yours to heart,
+// delete or put in folders.
+bool specialCopy(GJGameLevel* level);
 
 // all() only reads what filtering and sorting need, so song select opens fast
 // with thousands of saved levels. Whether the song is downloaded (a file check
@@ -56,7 +71,19 @@ void resolve(Entry& entry);
 // GD 2.2 has two kinds of level: classic (stars) and platformer (moons).
 // MapPacks: RobTop's map packs, each a header with its levels under it.
 // Online: GD's online lists (see OnlineBrowse.hpp), nothing from here.
-enum class Kind { Classic, Platformer, MapPacks, Online };
+// Gauntlets: like the packs, each gauntlet with its five levels (Gauntlets.hpp).
+// Daily, Weekly, Event: the current one and the safe's history (TimelyLevels.hpp).
+enum class Kind { Classic, Platformer, MapPacks, Online, Gauntlets, Daily, Weekly, Event };
+inline constexpr int KIND_COUNT = 8;
+inline bool timelyKind(Kind kind) { return kind == Kind::Daily || kind == Kind::Weekly || kind == Kind::Event; }
+// GD's type for a timely kind (Daily for anything else).
+GJTimedLevelType timedType(Kind kind);
+Kind kindOf(GJTimedLevelType type);
+// "daily", "weekly", "event".
+char const* timelyName(GJTimedLevelType type);
+// The daily number as GD shows it: weeklies and events count from 1 again.
+int timelyNumber(int dailyID);
+GJTimedLevelType timedTypeOf(int dailyID);
 
 // RobTop's levels of that kind in order, then every saved online level of that kind.
 // Classic: the main levels. Platformer: the Tower's levels (vanilla hides them

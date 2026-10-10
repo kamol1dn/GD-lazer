@@ -1,6 +1,9 @@
 #include "SongSelectInternal.hpp"
 
+#include <Geode/modify/DailyLevelPage.hpp>
 #include <Geode/modify/GameManager.hpp>
+#include <Geode/modify/GauntletLayer.hpp>
+#include <Geode/modify/GauntletSelectLayer.hpp>
 #include <Geode/modify/LevelInfoLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 
@@ -69,3 +72,31 @@ class $modify(SongSelectPreloadedLevel, PlayLayer) {
     }
 };
 
+
+// GD's daily, weekly and event popups (the creator hub's buttons, other
+// mods') open as our pages instead. The page GD made was already wired up as
+// the server's delegate: unhooked before it goes.
+class $modify(SongSelectDailyPage, DailyLevelPage) {
+    void show() {
+        if (this->getUserObject("hidden"_spr) || !Mod::get()->getSettingValue<bool>("enabled")) return DailyLevelPage::show();
+        auto glm = GameLevelManager::sharedState();
+        if (glm->m_GJDailyLevelDelegate == this) glm->m_GJDailyLevelDelegate = nullptr;
+        if (glm->m_levelDownloadDelegate == this) glm->m_levelDownloadDelegate = nullptr;
+        CCDirector::get()->replaceScene(CCTransitionFade::create(0.5f, lazer::SongSelect::timelyScene(m_type)));
+    }
+};
+
+// And GD's gauntlet screens (the list, and one gauntlet's levels).
+class $modify(SongSelectGauntlets, GauntletSelectLayer) {
+    static CCScene* scene(int unused) {
+        if (Mod::get()->getSettingValue<bool>("enabled")) return lazer::SongSelect::gauntletScene();
+        return GauntletSelectLayer::scene(unused);
+    }
+};
+
+class $modify(SongSelectGauntlet, GauntletLayer) {
+    static CCScene* scene(GauntletType type) {
+        if (Mod::get()->getSettingValue<bool>("enabled")) return lazer::SongSelect::gauntletScene(static_cast<int>(type));
+        return GauntletLayer::scene(type);
+    }
+};

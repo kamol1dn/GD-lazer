@@ -4,6 +4,7 @@
 #include "../core/MenuCursor.hpp"
 #include "../core/Theme.hpp"
 #include "../menu/Toolbar.hpp"
+#include "../overlays/Dialog.hpp"
 #include "../overlays/GameplayButtons.hpp"
 
 #include <Geode/binding/LevelSearchLayer.hpp>
@@ -91,6 +92,9 @@ namespace {
             case SearchType::Trending: return {icon::BOLT, "trending"};
             case SearchType::Awarded: return {icon::MEDAL, "awarded"};
             case SearchType::StarAward: return {icon::STAR, "star awarded"};
+            case SearchType::DailySafe: return {icon::CALENDAR_DAY, "daily"};
+            case SearchType::WeeklySafe: return {icon::CALENDAR_WEEK, "weekly"};
+            case SearchType::EventSafe: return {icon::BOLT, "event"};
             default: return lists ? PageText {icon::LAYERS, "lists"} : PageText {icon::LIST, "levels"};
         }
     }
@@ -127,7 +131,35 @@ namespace {
 }
 
 std::vector<packs::Pack>& SongSelect::packList() {
-    return onlineMode() ? browse::lists() : packs::all();
+    if (onlineMode()) return browse::lists();
+    return gauntletMode() ? gauntlets::all() : packs::all();
+}
+
+packs::State SongSelect::packListState() const {
+    if (onlineMode()) return browse::results().state == browse::State::Loading ? packs::State::Loading : packs::State::Loaded;
+    return gauntletMode() ? gauntlets::state() : packs::state();
+}
+
+void SongSelect::loadPackList() {
+    if (onlineMode()) return browse::refresh();
+    if (gauntletMode()) gauntlets::load();
+    else packs::load();
+}
+
+void SongSelect::loadAllPackLevels() {
+    if (onlineMode()) return;
+    if (gauntletMode()) gauntlets::loadAllLevels();
+    else packs::loadAllLevels();
+}
+
+float SongSelect::packLevelsProgress() const {
+    if (onlineMode()) return 1.f;
+    return gauntletMode() ? gauntlets::levelsProgress() : packs::levelsProgress();
+}
+
+char const* SongSelect::packWord() const {
+    if (onlineMode()) return "list";
+    return gauntletMode() ? "gauntlet" : "map pack";
 }
 
 packs::Pack* SongSelect::packOf(levels::Entry const& e) {
@@ -139,16 +171,19 @@ packs::Pack* SongSelect::packOf(levels::Entry const& e) {
 void SongSelect::loadPackLevels(int index) {
     if (index < 0) return;
     if (onlineMode()) browse::loadListLevels(static_cast<size_t>(index));
+    else if (gauntletMode()) gauntlets::loadLevels(static_cast<size_t>(index));
     else packs::loadLevels(static_cast<size_t>(index));
 }
 
 bool SongSelect::packLevelsLoading() const {
-    return onlineMode() ? browse::loadingListLevels() : packs::loadingLevels();
+    if (onlineMode()) return browse::loadingListLevels();
+    return gauntletMode() ? gauntlets::loadingLevels() : packs::loadingLevels();
 }
 
 bool SongSelect::canClaimPack(packs::Pack const& p) const {
     // A list's reward comes from GD's own list page.
-    return !onlineMode() && packs::canClaim(p);
+    if (onlineMode()) return false;
+    return gauntletMode() ? gauntlets::canClaim(p) : packs::canClaim(p);
 }
 
 // --- the controls above the carousel ---
@@ -255,13 +290,40 @@ void SongSelect::buildOnlineFilter() {
         auto title = makeText(text.title, Weight::SemiBold, 22 * k);
         title->setAnchorPoint({0, 0.5f});
         title->setPosition({x0 + 34 * k, searchY});
-        fit(title, fieldRight - x0 - 40 * k);
+        fit(title, timelyMode() ? 120 * k : fieldRight - x0 - 40 * k);
         this->addChild(title, 5);
+        if (timelyMode()) {
+            // The countdown to the next one, kept up to date in updateTimely.
+            m_timerLabel = makeText("", Weight::Regular, 15 * k);
+            m_timerLabel->setColor(theme::LIGHT1);
+            m_timerLabel->setAnchorPoint({0, 0.5f});
+            m_timerLabel->setPosition({x0 + 40 * k + title->getScaledContentSize().width, searchY});
+            this->addChild(m_timerLabel, 5);
+            m_timerText.clear();
+        }
     }
 
     // Row two: levels or lists, the sort, the filters, refresh.
     float rowY = H - 72 * k;
     float x = left + 22 * k;
+    if (timelyMode()) {
+        // The safe under the current level: refresh, and what the rows are.
+        auto& refresh = addIconButton(m_buttons, this, icon::ROTATE, {x, rowY}, 28 * k, TAB, [this] {
+            closeMenu();
+            timely::refresh(timelyType());
+            browse::refresh();
+        });
+        x += refresh.node->getContentSize().width + 10 * k;
+        auto name = levels::timelyName(timelyType());
+        auto hint = makeText(fmt::format("the current {} level, then the safe: every past one, newest first", name), Weight::Regular, 13 * k);
+        hint->setColor(theme::LIGHT1);
+        hint->setAnchorPoint({0, 0.5f});
+        hint->setPosition({x, rowY});
+        fit(hint, xRight - x - 10 * k);
+        this->addChild(hint, 5);
+        updateOnlineLabels();
+        return;
+    }
     bool canLists = m_request.searchPage || m_request.type == SearchType::Featured;
     if (canLists) {
         for (int i = 0; i < 2; i++) {
@@ -354,6 +416,7 @@ void SongSelect::updateOnlineLabels() {
         if (r.total >= 0) text = fmt::format("{} {}{}", commas(r.total), what, r.total == 1 ? "" : "s");
         else if (r.state == browse::State::Loading && r.count() == 0) text = m_request.query.empty() ? "loading..." : "searching...";
         else text = fmt::format("{} {}s so far", r.count(), what);
+        if (timelyMode() && r.total >= 0) text = fmt::format("{} in the safe", commas(r.total));
         m_countLabel->setString(text.c_str());
     }
     if (m_pageTotal) {
@@ -508,6 +571,82 @@ void SongSelect::rebuildOnlineEntries() {
     }
     // Pages only ever add rows at the end: the panels' entry indices hold.
     m_entries = r.levels;
+    if (!timelyMode()) return;
+    // The current level on top (GD's own copy of it, with its daily ID and
+    // progress). The safe's newest is usually the same level: that row is
+    // then the current one, so it doesn't show twice.
+    bool hadRow = m_timelyRow;
+    size_t hadShift = m_timelyShift;
+    m_timelyRow = false;
+    m_timelyShift = 0;
+    if (m_timely.state == timely::State::Ready && m_timely.level) {
+        auto current = levels::fromLevel(m_timely.level, false);
+        if (current.dailyID <= 0) current.dailyID = m_timely.dailyID;
+        bool same = !m_entries.empty() && m_entries.front().dailyID > 0 && m_entries.front().dailyID == current.dailyID;
+        if (same) m_entries.front() = current;
+        else {
+            m_entries.insert(m_entries.begin(), current);
+            m_timelyShift = 1;
+        }
+        m_timelyRow = true;
+    }
+    if (hadRow != m_timelyRow || hadShift != m_timelyShift) {
+        // The rows moved: no panel can be reused.
+        for (auto& [index, panel] : m_panels) panel.root->removeFromParent();
+        m_panels.clear();
+    }
+}
+
+// --- the daily, weekly and event pages ---
+
+void SongSelect::updateTimely(float dt) {
+    m_timelyPollMs += dt * 1000.f;
+    if (m_timelyPollMs < 100) return;
+    m_timelyPollMs = 0;
+    auto st = timely::status(timelyType());
+    // The countdown.
+    if (m_timerLabel) {
+        std::string text;
+        bool event = timelyType() == GJTimedLevelType::Event;
+        if (st.state == timely::State::Failed) text = "couldn't reach GD's servers";
+        else if (st.activeID > st.dailyID && st.dailyID > 0) text = "a newer one is up";
+        // Event levels come whenever RobTop sets one: no countdown for those.
+        else if (event) text = st.state == timely::State::Waiting ? "the next one comes when it comes" : "";
+        else if (st.secondsLeft > 0) {
+            text = (st.state == timely::State::Waiting ? "next one in " : "new one in ") + timely::timeLeft(st.secondsLeft);
+        }
+        if (text != m_timerText) {
+            m_timerText = text;
+            m_timerLabel->setString(text.c_str());
+        }
+    }
+    if (st.version == m_timely.version) return;
+    bool rowsChange = st.state != m_timely.state || st.level != m_timely.level || st.dailyID != m_timely.dailyID;
+    m_timely = st;
+    if (m_starting) {
+        m_browseDirty = true;
+        return;
+    }
+    if (rowsChange) onBrowseChanged();
+    else refreshDetails();
+}
+
+void SongSelect::claimTimely() {
+    if (!m_timely.claimable) return;
+    sfx::play(sfx::sound::DIALOG_OK_SELECT);
+    timely::claim(timelyType());
+}
+
+void SongSelect::skipTimely() {
+    if (!m_timely.skippable) return;
+    auto type = timelyType();
+    auto name = levels::timelyName(type);
+    Dialog::show(icon::CHEVRON_RIGHT, fmt::format("Skip this {} level?", name),
+        fmt::format("A newer {} level is up. Skipping takes you to it; this one stays in the safe, where it can still be beaten as {} #{}.",
+                    name, name, levels::timelyNumber(m_timely.dailyID)), {
+        {"Skip it", Dialog::Kind::Ok, [type] { timely::skip(type); }},
+        {"Keep this one", Dialog::Kind::Cancel, nullptr},
+    });
 }
 
 void SongSelect::onBrowseChanged() {
@@ -593,9 +732,10 @@ int SongSelect::currentPage() const {
         index = std::min(index, m_visible.size() - 1);
     }
     auto const& e = m_entries[m_visible[index]];
-    // A list's level counts as its list.
+    // A list's level counts as its list; the current daily on top is on the first page.
     size_t item = packMode() ? static_cast<size_t>(std::max(0, e.pack)) : m_visible[index];
-    return browse::pageOf(item);
+    if (!packMode() && item < onlineShift()) return r.firstPage;
+    return browse::pageOf(item - (packMode() ? 0 : onlineShift()));
 }
 
 void SongSelect::goToPage(int page) {
@@ -618,7 +758,7 @@ void SongSelect::goToPage(int page) {
 bool SongSelect::scrollToPageIfLoaded(int page) {
     auto const& r = browse::results();
     if (r.pagesLoaded == 0 || page < r.firstPage || page > r.lastPage()) return false;
-    size_t item = static_cast<size_t>(page - r.firstPage) * browse::PER_PAGE;
+    size_t item = static_cast<size_t>(page - r.firstPage) * browse::PER_PAGE + (packMode() ? 0 : onlineShift());
     for (size_t v = 0; v < m_visible.size(); v++) {
         auto const& e = m_entries[m_visible[v]];
         size_t mine = packMode() ? (e.packHeader ? static_cast<size_t>(e.pack) : SIZE_MAX) : m_visible[v];

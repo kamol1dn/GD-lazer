@@ -45,6 +45,7 @@ void SongSelect::update(float dt) {
         return;
     }
     if (onlineMode()) updateOnline(dt);
+    if (timelyMode()) updateTimely(dt);
     updateCarousel(dt);
     updateScrollbar(dt);
 

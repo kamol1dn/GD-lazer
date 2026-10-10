@@ -103,6 +103,8 @@ namespace {
         if (!official) e.folder = level->m_levelFolder;
         e.coins = level->m_coins;
         e.coinsVerified = official || level->m_coinsVerified.value() > 0;
+        e.dailyID = official ? 0 : level->m_dailyID.value();
+        e.gauntlet = !official && level->m_gauntletLevel;
         fillSong(e, level);
         e.search = lower(e.name + " " + e.creator + " " + e.songTitle + " " + e.songArtist);
         return e;
@@ -114,7 +116,10 @@ Entry fromLevel(GJGameLevel* level, bool official) {
 }
 
 GJGameLevel* withSavedCopy(GJGameLevel* level) {
-    auto saved = GameLevelManager::sharedState()->getSavedLevel(level->m_levelID.value());
+    // By the level object: GD picks its daily copies for a level with a daily
+    // ID, its gauntlet copies for a gauntlet's level, and its saved levels
+    // otherwise (GameLevelManager::getSavedLevel(GJGameLevel*)).
+    auto saved = GameLevelManager::sharedState()->getSavedLevel(level);
     if (!saved || saved == level) return level;
     if (!std::string(saved->m_levelName).empty()) return saved;
     if (saved->m_normalPercent.value() > level->m_normalPercent.value()) level->m_normalPercent = saved->m_normalPercent.value();
@@ -126,13 +131,54 @@ GJGameLevel* withSavedCopy(GJGameLevel* level) {
 
 bool isSaved(GJGameLevel* level) {
     if (!level) return false;
-    auto saved = GameLevelManager::sharedState()->getSavedLevel(level->m_levelID.value());
+    auto saved = GameLevelManager::sharedState()->getSavedLevel(level);
     return saved == level && !std::string(saved->m_levelName).empty();
+}
+
+bool specialCopy(GJGameLevel* level) {
+    return level && (level->m_dailyID.value() > 0 || level->m_gauntletLevel);
+}
+
+GJTimedLevelType timedType(Kind kind) {
+    switch (kind) {
+        case Kind::Weekly: return GJTimedLevelType::Weekly;
+        case Kind::Event: return GJTimedLevelType::Event;
+        default: return GJTimedLevelType::Daily;
+    }
+}
+
+Kind kindOf(GJTimedLevelType type) {
+    switch (type) {
+        case GJTimedLevelType::Weekly: return Kind::Weekly;
+        case GJTimedLevelType::Event: return Kind::Event;
+        default: return Kind::Daily;
+    }
+}
+
+char const* timelyName(GJTimedLevelType type) {
+    switch (type) {
+        case GJTimedLevelType::Weekly: return "weekly";
+        case GJTimedLevelType::Event: return "event";
+        default: return "daily";
+    }
+}
+
+int timelyNumber(int dailyID) {
+    if (dailyID > 200000) return dailyID - 200000;
+    if (dailyID > 100000) return dailyID - 100000;
+    return dailyID;
+}
+
+GJTimedLevelType timedTypeOf(int dailyID) {
+    if (dailyID > 200000) return GJTimedLevelType::Event;
+    if (dailyID > 100000) return GJTimedLevelType::Weekly;
+    return GJTimedLevelType::Daily;
 }
 
 std::vector<Entry> all(Kind kind) {
     std::vector<Entry> entries;
-    if (kind == Kind::MapPacks || kind == Kind::Online) return entries; // see MapPacks.hpp, OnlineBrowse.hpp
+    // Packs, gauntlets, online lists and the timely levels have stores of their own.
+    if (kind != Kind::Classic && kind != Kind::Platformer) return entries;
     auto glm = GameLevelManager::sharedState();
     bool platformer = kind == Kind::Platformer;
 
@@ -164,11 +210,11 @@ void resolve(Entry& entry) {
 }
 
 bool favorited(Entry const& entry) {
-    return !entry.official && entry.level->m_levelFavorited;
+    return !entry.official && entry.level && entry.level->m_levelFavorited;
 }
 
 void setFavorited(Entry const& entry, bool favorited) {
-    if (entry.official) return;
+    if (entry.official || !entry.level || specialCopy(entry.level)) return;
     // What LevelInfoLayer::onFavorite does: flip the flag, GD saves it with the level.
     entry.level->m_levelFavorited = favorited;
 }
@@ -206,7 +252,7 @@ int deleteUnhearted() {
 }
 
 void deleteLevel(Entry const& entry) {
-    if (entry.official || !entry.level) return;
+    if (entry.official || !entry.level || specialCopy(entry.level)) return;
     Ref<GJGameLevel> keep = entry.level; // deleteLevel releases GD's reference
     GameLevelManager::sharedState()->deleteLevel(entry.level);
     log::info("Deleted saved level {} ({})", entry.name, entry.id);

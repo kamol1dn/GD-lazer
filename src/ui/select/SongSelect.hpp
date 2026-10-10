@@ -1,8 +1,10 @@
 #pragma once
 
+#include "../../levels/Gauntlets.hpp"
 #include "../../levels/LevelLibrary.hpp"
 #include "../../levels/MapPacks.hpp"
 #include "../../levels/OnlineBrowse.hpp"
+#include "../../levels/TimelyLevels.hpp"
 #include "../core/Easing.hpp"
 #include "../core/RoundedBox.hpp"
 #include "../core/ScrollArea.hpp"
@@ -37,6 +39,13 @@ class MenuBackground;
 // at a time as they're scrolled to (see OnlineBrowse.hpp), a sort and filters
 // above the carousel, and a pager beside the count. Level lists open like
 // the packs.
+//
+// Gauntlets (Kind::Gauntlets) are the pack screen with GD's gauntlets as the
+// rows, each opening into its five levels, locked in order (Gauntlets.hpp).
+// The daily, weekly and event levels (Kind::Daily, Weekly, Event) are the
+// online screen with the current level as the first row and the safe's
+// history (GD's past ones) after it; GD's own page for them runs hidden
+// underneath and keeps the timer, the claim and the skip (TimelyLevels.hpp).
 // (GD's CCLayer is already a CCMouseDelegate.)
 class SongSelect : public cocos2d::CCLayer, public CustomSongDelegate, public LeaderboardManagerDelegate,
                    public LevelDownloadDelegate, public MusicDownloadDelegate, public TextInputDelegate {
@@ -48,6 +57,10 @@ public:
     // One of GD's online lists as song select (the request starts loading,
     // unless it's the one already shown, whose results are kept).
     static cocos2d::CCScene* onlineScene(browse::Request const& request);
+    // The daily, weekly or event page: the current level, then the safe.
+    static cocos2d::CCScene* timelyScene(GJTimedLevelType type);
+    // The gauntlets, with one of them open (0: as they were left).
+    static cocos2d::CCScene* gauntletScene(int gauntletID = 0);
     static SongSelect* create(levels::Kind kind, bool fromMenu = false);
     // Reuse the loading card over a level page, keeping GD's playback/navigation.
     static SongSelect* pageLoader(GJGameLevel* level, std::function<void()> launch);
@@ -147,7 +160,12 @@ protected:
     };
 
     bool init(levels::Kind kind, bool fromMenu);
-    bool onlineMode() const { return m_kind == levels::Kind::Online; }
+    // The daily, weekly and event pages are online pages (the safe's history
+    // comes from the browse store) with the current level on top.
+    bool timelyMode() const { return levels::timelyKind(m_kind); }
+    GJTimedLevelType timelyType() const { return levels::timedType(m_kind); }
+    bool onlineMode() const { return m_kind == levels::Kind::Online || timelyMode(); }
+    bool gauntletMode() const { return m_kind == levels::Kind::Gauntlets; }
     // Selects a level using the song at `path`, whose song ID (MusicPlayer's) is
     // `songID` (clearing the filters if they hide it).
     bool selectSong(std::string const& path, int songID);
@@ -171,13 +189,20 @@ protected:
     // Map packs (Kind::MapPacks): the packs are the rows, and the open one has
     // its levels under it, like osu!'s beatmap sets and their difficulties.
     // Online level lists are shown the same way.
-    bool packMode() const { return m_kind == levels::Kind::MapPacks || (onlineMode() && m_onlineLists); }
-    // The packs (or the lists) the rows come from, and an entry's.
+    bool packMode() const { return m_kind == levels::Kind::MapPacks || gauntletMode() || (onlineMode() && m_onlineLists); }
+    // The packs (or the gauntlets, or the lists) the rows come from, and an entry's.
     std::vector<packs::Pack>& packList();
     packs::Pack* packOf(levels::Entry const& e);
+    // The state of the list of packs (or gauntlets; the lists are the browse store's).
+    packs::State packListState() const;
+    void loadPackList();
     void loadPackLevels(int index);
+    void loadAllPackLevels();
     bool packLevelsLoading() const;
+    float packLevelsProgress() const;
     bool canClaimPack(packs::Pack const& p) const;
+    // What the rows are: "map pack", "gauntlet", "list".
+    char const* packWord() const;
     // m_entries from the loaded packs: each header followed by its levels.
     void rebuildPackEntries();
     // The pack list or a pack's levels arrived (or failed).
@@ -240,6 +265,14 @@ protected:
     void openFilterMenu();
     void toggleFilterOption(int row, int option);
     void updateOnlineLabels();
+    // Timely pages: the current level's state, read off GD's hidden page
+    // every frame; a change rebuilds the rows and the details.
+    void updateTimely(float dt);
+    void claimTimely();
+    void skipTimely();
+    // How far an entry's index is from its place in the browse results: the
+    // current level on top (unless the safe's first is the same one) shifts them.
+    size_t onlineShift() const { return m_timelyShift; }
     // The page (0-based) of the row in the middle of the view.
     int currentPage() const;
     // The pager: a loaded page scrolls into view, the next one loads, any
@@ -294,6 +327,14 @@ protected:
     bool m_pageInputOpen = false;
     bool m_pageCommitted = false;
     bool m_browseDirty = false;        // results changed while the loader was up
+    // Timely pages (see TimelyLevels.hpp): what GD's page shows, and whether
+    // the rows start with the current level.
+    timely::Status m_timely;
+    bool m_timelyRow = false;
+    size_t m_timelyShift = 0;
+    cocos2d::CCLabelBMFont* m_timerLabel = nullptr;
+    std::string m_timerText;
+    float m_timelyPollMs = 0;
     geode::TextInput* m_pageInput = nullptr;
     cocos2d::CCLabelBMFont* m_pageTotal = nullptr;
     cocos2d::CCLabelBMFont* m_filtersLabel = nullptr;

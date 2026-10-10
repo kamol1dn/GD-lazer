@@ -18,7 +18,7 @@ namespace lazer {
 namespace songselect {
     levels::Kind g_lastKind = levels::Kind::Classic;
     Remembered& remembered() {
-        static Remembered r[4];
+        static Remembered r[levels::KIND_COUNT];
         return r[static_cast<int>(g_lastKind)];
     }
 
@@ -54,6 +54,28 @@ CCScene* SongSelect::onlineScene(browse::Request const& request) {
         && request.filters == browse::Filters {} && shown.count() > 0;
     browse::open(keep ? shown.request : request);
     return scene(levels::Kind::Online);
+}
+
+CCScene* SongSelect::timelyScene(GJTimedLevelType type) {
+    onlineReturn().reset();
+    // The safe: GD's list of the past ones, newest first (the one shown is
+    // kept, with its results).
+    SearchType safe = type == GJTimedLevelType::Weekly ? SearchType::WeeklySafe
+                    : type == GJTimedLevelType::Event ? SearchType::EventSafe : SearchType::DailySafe;
+    browse::open(browse::pageRequest(safe));
+    return scene(levels::kindOf(type));
+}
+
+CCScene* SongSelect::gauntletScene(int gauntletID) {
+    if (gauntletID > 0) {
+        g_lastKind = levels::Kind::Gauntlets;
+        auto& r = remembered();
+        r.expandedPack = gauntletID;
+        r.selectedId = gauntletID;
+        r.selectedOfficial = false;
+        r.selectedHeader = true;
+    }
+    return scene(levels::Kind::Gauntlets);
 }
 
 CCScene* SongSelect::scene(levels::Kind kind) {
@@ -155,18 +177,29 @@ bool SongSelect::init(levels::Kind kind, bool fromMenu) {
     if (onlineMode()) {
         // Levels played since have saved copies and progress now.
         browse::refreshProgress();
+        if (timelyMode()) {
+            // GD's page for the daily (weekly, event) runs hidden under this
+            // one: the current level, its timer, claim and skip are its.
+            timely::attach(timelyType(), this);
+            m_timely = timely::status(timelyType());
+        }
         rebuildOnlineEntries();
         log::info("Song select: online, {} so far", browse::results().count());
     } else if (packMode()) {
         // The packs (and any pack's levels) come from the session's store,
         // told here whenever more arrive; GD's cache may fill it in at once.
-        packs::setListener([this] { this->onPacksChanged(); });
-        for (auto& p : packs::all()) packs::refresh(p);
-        packs::load();
-        if (packs::state() != packs::State::Loading) rebuildPackEntries();
-        log::info("Song select: {} map packs", packs::all().size());
+        if (gauntletMode()) {
+            gauntlets::setListener([this] { this->onPacksChanged(); });
+            for (auto& p : gauntlets::all()) gauntlets::refresh(p);
+        } else {
+            packs::setListener([this] { this->onPacksChanged(); });
+            for (auto& p : packs::all()) packs::refresh(p);
+        }
+        loadPackList();
+        if (packListState() != packs::State::Loading) rebuildPackEntries();
+        log::info("Song select: {} {}s", packList().size(), packWord());
         // Many players dread this page. So does the cursor.
-        if (fromMenu) {
+        if (fromMenu && !gauntletMode()) {
             static std::mt19937 rng {std::random_device {}()};
             cursorSay(MAP_PACKS_CURSOR[std::uniform_int_distribution<size_t>(0, MAP_PACKS_CURSOR.size() - 1)(rng)]);
         }
@@ -209,7 +242,9 @@ void SongSelect::onExit() {
     }
     CCDirector::get()->getMouseDispatcher()->removeDelegate(this);
     if (m_kind == levels::Kind::MapPacks) packs::setListener(nullptr);
+    if (gauntletMode()) gauntlets::setListener(nullptr);
     if (onlineMode()) browse::setListener(nullptr);
+    if (timelyMode()) timely::detach(timelyType());
     auto glm = GameLevelManager::sharedState();
     if (glm->m_leaderboardManagerDelegate == this) glm->m_leaderboardManagerDelegate = nullptr;
     stopListening();
@@ -406,7 +441,7 @@ void SongSelect::confirmDeleteUnhearted() {
 void SongSelect::confirmDeleteLevel() {
     if (!m_hasSelection || m_selected >= m_visible.size()) return;
     auto const& e = m_entries[m_visible[m_selected]];
-    if (e.official || e.pack >= 0 || !e.level) return;
+    if (e.official || e.pack >= 0 || !e.level || levels::specialCopy(e.level)) return;
     Ref<GJGameLevel> level = e.level;
     Ref<SongSelect> self = this;
     Dialog::show(icon::TRASH, "Confirm deletion of", fmt::format("{} by {}", e.name, e.creator), {

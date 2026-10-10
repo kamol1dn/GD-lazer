@@ -1,6 +1,7 @@
 #include "SongSelectInternal.hpp"
 
 #include "../../audio/Sfx.hpp"
+#include "../core/MenuCursor.hpp"
 #include "../core/Theme.hpp"
 #include "../menu/MenuBackground.hpp"
 #include "../overlays/Dialog.hpp"
@@ -65,6 +66,11 @@ void SongSelect::start() {
         return;
     }
     if (!e.level) return;
+    // A gauntlet's levels open in order.
+    if (e.locked) {
+        cursorSay("beat the level before it first");
+        return;
+    }
     auto level = e.level;
     int songID = level ? level->m_songID : 0;
     auto songs = MusicDownloadManager::sharedState();
@@ -434,9 +440,11 @@ void SongSelect::loadLevel() {
     m_previewPath.clear();
 
     // Progress goes to the level played, and GD only keeps its own saved
-    // copy: a fetched copy or a replaced one would lose it.
+    // copy: a fetched copy or a replaced one would lose it. A daily (weekly,
+    // event) level and a gauntlet's have copies of their own in GD, with
+    // their own progress: those are what count as beating it as that.
     if (m_loaderLevel->m_levelType != GJLevelType::Main) {
-        auto saved = GameLevelManager::sharedState()->getSavedLevel(m_loaderLevel->m_levelID.value());
+        auto saved = GameLevelManager::sharedState()->getSavedLevel(m_loaderLevel.data());
         if (saved && saved != m_loaderLevel.data() && !std::string(saved->m_levelString).empty()) m_loaderLevel = saved;
     }
 
@@ -486,7 +494,9 @@ void SongSelect::startDownloads(levels::Entry const& e) {
     if (std::string(level->m_levelString).empty()) {
         auto glm = GameLevelManager::sharedState();
         glm->m_levelDownloadDelegate = this;
-        glm->downloadLevel(e.id, false, 0);
+        // As what it is: GD files a gauntlet's level and a daily (weekly,
+        // event) level, by its daily ID, among its copies of those.
+        glm->downloadLevel(e.id, level->m_gauntletLevel, level->m_dailyID.value());
     }
     int songID = level->m_songID;
     auto songs = MusicDownloadManager::sharedState();
@@ -556,7 +566,8 @@ void SongSelect::levelDownloadFinished(GJGameLevel* level) {
     // GD saves a downloaded level as a new object (GameLevelManager::saveLevel
     // gives it the old copy's progress) and keeps only that one: play it, or
     // the attempt's progress goes to a copy GD no longer saves (#55, #61).
-    if (glm->getSavedLevel(level->m_levelID.value()) == level) {
+    // (A daily's or a gauntlet's copy is looked up among those.)
+    if (glm->getSavedLevel(level) == level) {
         for (auto& entry : m_entries) {
             if (entry.level == m_loaderLevel) entry.level = level;
         }
