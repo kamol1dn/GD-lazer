@@ -51,8 +51,17 @@ public:
     bool startMenuMusic();
 
     // Game start: hold the first song back until the intro starts it (osu!'s
-    // IntroScreen.StartTrack), so it fades in under the animation.
+    // IntroScreen.StartTrack).
     void holdForIntro() { m_introHold = true; }
+    // The intro's song: Dash (MDK), the last main level's, GD's audio track 21.
+    static constexpr int INTRO_AUDIO = 21;
+    static std::string introFile();
+    // Whether startIntroTrack() can: the player on, no radio, Dash not blocked.
+    bool introTrackPossible() const;
+    // Plays Dash from the top on the music channel as the intro begins, so it
+    // carries on as the menu's first song. False when it can't (see above, or
+    // the file missing): the hold stays for releaseIntro() then.
+    bool startIntroTrack();
     // Starts the current song from the top. Returns false if there is no song
     // of ours to play (GD's own menu loop is on the channel then).
     bool releaseIntro();

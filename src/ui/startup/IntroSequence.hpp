@@ -11,14 +11,22 @@
 
 namespace lazer {
 
-// The game-start intro, after osu!'s IntroTriangles (osu.Game/Screens/Menu/IntroTriangles.cs):
-// "welcome to geometry dash" typed out over glitching triangles, GD's cube,
-// spike, orb and trigger punching in (osu!'s ruleset icons), then the logo
-// drawing itself in and a flash as the menu appears.
+// The game-start intro, after osu!'s IntroTriangles (osu.Game/Screens/Menu/IntroTriangles.cs),
+// cut to the opening of Dash (MDK, the last main level's song, GD's own
+// copy): over its first bar GD's cube, spike, orb and trigger punch in a beat
+// each (osu!'s ruleset icons) with triangles glitching on every note of the
+// arpeggio behind them; over the second they step together and grow; over
+// the third and fourth the logo draws itself in and shrinks to its place on
+// the menu; and on bar five's crash a flash reveals the menu, with the song
+// playing on as its first track (the first drop, and the voice before it,
+// land on the menu with the cursor saying its lines; see quips::followSong).
 //
-// It plays the opening of osu!'s triangles theme, which this timeline is cut
-// to, with osu!'s "welcome to osu!" voice taken out of the first second. The
-// menu song starts on the reveal and fades in as the theme fades out.
+// The song is the clock: the timeline follows the music channel's position.
+// A tap or Escape skips to the reveal.
+//
+// Without the music player (off, Ventilla's radio, Dash blocked) the intro
+// plays its own copy of the song from GD's resources and fades it out as the
+// menu's own music fades in at the reveal.
 //
 // The logo is drawn as line art in the player's colours (osu!'s LogoAnimation
 // strokes): a thick coloured pass with a thin glow-coloured highlight racing
@@ -32,8 +40,8 @@ public:
 
     void update(float dt) override;
     void registerWithTouchDispatcher() override;
-    bool ccTouchBegan(cocos2d::CCTouch*, cocos2d::CCEvent*) override { return true; }
-    void keyBackClicked() override {}
+    bool ccTouchBegan(cocos2d::CCTouch*, cocos2d::CCEvent*) override;
+    void keyBackClicked() override;
     // The menu is visible once the intro reveals it.
     bool revealed() const { return m_revealed; }
 
@@ -46,16 +54,18 @@ protected:
     };
 
     bool init(float logoRadius, std::function<void()> onReveal);
-    void setText(std::string const& text);
-    void layoutText();
-    void updateTriangles(float ms);
-    void layoutRulesets();
+    // Starts the song (and the timeline with it).
+    void start();
+    void spawnTriangles(int count, float size);
+    void updateTriangles(float ms, bool emitting, float intervalMs);
+    void layoutIcons(float spacing);
     void drawLogo(float progress);
     // Draws `path` (a polyline) from its start up to `progress`, coloured
     // from `from` to `to` along its length.
     void drawStroke(std::vector<cocos2d::CCPoint> const& path, float progress, float width,
                     cocos2d::ccColor3B from, cocos2d::ccColor3B to);
     void reveal();
+    void skip();
     void setMusicVolume(float volume);
 
     std::function<void()> m_onReveal;
@@ -64,36 +74,28 @@ protected:
     float m_timeMs = 0;
     float m_lastMs = -1;
     bool m_started = false;
-    FMOD::Channel* m_cue = nullptr; // the theme, once it plays: the timeline follows it
+    bool m_musicTrack = false;      // Dash plays on GD's music channel, the menu's first song
+    FMOD::Channel* m_cue = nullptr; // or the intro's own copy, faded out at the reveal
+    float m_cueVolume = 0;
     bool m_revealed = false;
     float m_revealMs = 0;
     PlayerPalette m_palette;
 
     cocos2d::CCNode* m_content = nullptr;
 
-    // "welcome to geometry dash", one label per character so letter spacing can animate.
-    cocos2d::CCNode* m_text = nullptr;
-    std::vector<cocos2d::CCLabelBMFont*> m_chars;
-    float m_spacing = 5;
-
     cocos2d::CCDrawNode* m_triangleDraw = nullptr;
     std::vector<Triangle> m_triangles;
     float m_triangleClock = 0;
-    bool m_trianglesOn = false;
 
-    cocos2d::CCNode* m_rulesetsScale = nullptr;
-    cocos2d::CCNode* m_rulesets = nullptr;
-    std::vector<cocos2d::CCNode*> m_icons;
-    float m_rulesetSpacing = 200;
-    Tweened<float> m_rulesetsScaleTween {1.f};
+    cocos2d::CCNode* m_iconsScale = nullptr;
+    cocos2d::CCNode* m_icons = nullptr;
+    std::vector<cocos2d::CCNode*> m_iconHolders; // each scales its icon for the beat
 
     cocos2d::CCNode* m_logoContainer = nullptr;
     cocos2d::CCNode* m_logo = nullptr;
     cocos2d::CCDrawNode* m_logoDraw = nullptr;
     std::vector<cocos2d::CCPoint> m_ringPath, m_cubePath, m_innerPath;
     float m_logoBaseRadius = 0;
-    Tweened<float> m_logoScale {1.2f};
-    Tweened<float> m_logoContainerScale {1.2f};
 };
 
 } // namespace lazer

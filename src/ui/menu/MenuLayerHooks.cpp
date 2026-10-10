@@ -38,7 +38,7 @@ bool LazerMenuLayer::init() {
 
     if (!MenuLayer::init()) return false;
     // Not on the Geode index: look for updates on GitHub (even with the Lazer menu off).
-    lazer::updater::onMenu(this, intro ? 4.f : 1.f);
+    lazer::updater::onMenu(this, intro ? 11.f : 1.f);
     g_newLevelFlow = false;
     // Back at the menu: gameplay no longer returns to song select.
     lazer::SongSelect::returnsHere() = false;
@@ -101,18 +101,20 @@ bool LazerMenuLayer::init() {
         {"platformer", icon::RUNNING, {102, 68, 204}, leave(State::Play, [] {
             showScene(lazer::SongSelect::scene(lazer::levels::Kind::Platformer));
         }), true, lazer::sfx::sound::MENU_PLAY_SELECT, State::Play},
-        {"daily", icon::CALENDAR_DAY, PLAY_SUB, [] {
+        // The daily, weekly and event levels: song select with the current
+        // one on top and the safe's history under it.
+        {"daily", icon::CALENDAR_DAY, PLAY_SUB, leave(State::Play, [] {
             lazer::quips::say("daily", 0.35f);
-            creatorAction(&CreatorLayer::onDailyLevel);
-        }, false, defaultSound, State::Play},
-        {"weekly", icon::CALENDAR_WEEK, PLAY_SUB, [] {
+            showScene(lazer::SongSelect::timelyScene(GJTimedLevelType::Daily));
+        }), true, lazer::sfx::sound::MENU_PLAY_SELECT, State::Play},
+        {"weekly", icon::CALENDAR_WEEK, PLAY_SUB, leave(State::Play, [] {
             lazer::quips::say("weekly", 0.35f);
-            creatorAction(&CreatorLayer::onWeeklyLevel);
-        }, false, defaultSound, State::Play},
-        {"event", icon::BOLT, PLAY_SUB, [] {
+            showScene(lazer::SongSelect::timelyScene(GJTimedLevelType::Weekly));
+        }), true, lazer::sfx::sound::MENU_PLAY_SELECT, State::Play},
+        {"event", icon::BOLT, PLAY_SUB, leave(State::Play, [] {
             lazer::quips::say("event", 0.35f);
-            creatorAction(&CreatorLayer::onEventLevel);
-        }, false, defaultSound, State::Play},
+            showScene(lazer::SongSelect::timelyScene(GJTimedLevelType::Event));
+        }), true, lazer::sfx::sound::MENU_PLAY_SELECT, State::Play},
 
         // create: your own levels
         {"my levels", icon::FOLDER_OPEN, {238, 170, 0}, creator(State::Create, &CreatorLayer::onMyLevels), true, defaultSound, State::Create},
@@ -165,16 +167,12 @@ bool LazerMenuLayer::init() {
     toolbar->addLeft({lazer::makeIcon(icon::HOUSE, 1), "home", [this, buttons] {
         if (!this->closeAllOverlays()) buttons->back();
     }});
-    // GD's level collections, from the creator hub; back from them lands on the menu you left.
-    auto hub = [this](void (CreatorLayer::*handler)(CCObject*)) {
-        return [this, handler] {
-            g_returnState = m_fields->buttons ? m_fields->buttons->getState() : ButtonSystem::State::TopLevel;
-            creatorAction(handler);
-        };
-    };
-    toolbar->addLeft({lazer::makeIcon(icon::FIST, 1), "gauntlets", [hub] {
+    // Gauntlets open as song select's pack list (each with its five levels);
+    // back from it lands on the menu you left.
+    toolbar->addLeft({lazer::makeIcon(icon::FIST, 1), "gauntlets", [this] {
         lazer::quips::say("gauntlets", 0.6f);
-        hub(&CreatorLayer::onGauntlets)();
+        g_returnState = m_fields->buttons ? m_fields->buttons->getState() : ButtonSystem::State::TopLevel;
+        showScene(lazer::SongSelect::gauntletScene());
     }});
     // Map packs open as song select's pack list; back from it lands on the menu you left.
     toolbar->addLeft({lazer::makeIcon(icon::BOXES, 1), "map packs", [this] {

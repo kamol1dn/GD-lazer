@@ -219,6 +219,30 @@ bool MusicPlayer::startMenuMusic() {
     return true;
 }
 
+std::string MusicPlayer::introFile() {
+    return std::string(LevelTools::getAudioFileName(INTRO_AUDIO));
+}
+
+bool MusicPlayer::introTrackPossible() const {
+    return enabled() && !radioWanted() && !m_blocked.contains(officialSongID(INTRO_AUDIO));
+}
+
+bool MusicPlayer::startIntroTrack() {
+    if (!introTrackPossible()) return false;
+    if (m_tracks.empty()) rebuildPlaylist();
+    int id = officialSongID(INTRO_AUDIO);
+    auto it = std::find_if(m_tracks.begin(), m_tracks.end(), [id](Track const& t) { return t.songID == id; });
+    if (it == m_tracks.end()) {
+        log::info("Intro: Dash isn't in the playlist");
+        return false;
+    }
+    log::info("Intro starts Dash (held: {})", m_introHold);
+    m_introHold = false;
+    m_radio = false;
+    play(it - m_tracks.begin(), Direction::None, 0, 0.f);
+    return true;
+}
+
 bool MusicPlayer::releaseIntro() {
     bool held = m_introHold;
     m_introHold = false;

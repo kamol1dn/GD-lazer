@@ -334,6 +334,7 @@ namespace {
 
             for (auto t : {&m_alpha, &m_scale, &m_press, &m_rotation, &m_glow}) t->update(dt);
             if (m_bubble) m_bubble->tick(dt);
+            if (m_visible && focused) quips::followSong();
 
             // Dizzy: once it has spun back, it shivers for a moment.
             float wobble = 0;

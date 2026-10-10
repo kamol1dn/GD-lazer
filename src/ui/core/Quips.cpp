@@ -2,7 +2,11 @@
 
 #include "MenuCursor.hpp"
 
+#include "../../audio/MusicPlayer.hpp"
+
 #include <Geode/Geode.hpp>
+#include <Geode/binding/FMODAudioEngine.hpp>
+#include <array>
 #include <chrono>
 #include <random>
 #include <string_view>
@@ -74,6 +78,50 @@ void sayLine(std::string const& line) {
     if (t - g_lastSaid < COOLDOWN_S) return;
     g_lastSaid = t;
     cursorSay(line);
+}
+
+void sayNow(std::string const& line) {
+    g_lastSaid = now();
+    cursorSay(line);
+}
+
+// Dash's lines, measured from GD's Dash.mp3 (the grid is in IntroSequence):
+// "Geometry Dash" at 15.0 s into the first drop at 16.15 s; in the build to
+// the second drop (61.15 s) it counts "three, two, one" on the bars at
+// 53.65, 55.52 and 57.40 s and says "Geometry Dash" again at 60.05 s. Said
+// 60 ms early, the bubble takes a moment to pop in.
+// Only when the position runs through a mark on its own: a seek jumps over
+// it, another song isn't Dash, and Dash coming round again says them again.
+void followSong() {
+    struct Line {
+        unsigned ms;
+        char const* text;
+    };
+    static constexpr std::array<Line, 5> LINES {{
+        {14940, "geometry dash"},
+        {53590, "three"},
+        {55465, "two"},
+        {57340, "one"},
+        {59990, "geometry dash"},
+    }};
+    static bool following = false;
+    static unsigned lastPos = 0;
+
+    auto engine = FMODAudioEngine::sharedEngine();
+    bool dash = engine->isMusicPlaying(0)
+        && geode::utils::string::endsWith(std::string(engine->getActiveMusic(0)), MusicPlayer::introFile());
+    if (!dash) {
+        following = false;
+        return;
+    }
+    unsigned pos = engine->getMusicTimeMS(0);
+    if (following && pos > lastPos && pos - lastPos < 500) {
+        for (auto const& line : LINES) {
+            if (lastPos < line.ms && pos >= line.ms) sayNow(line.text);
+        }
+    }
+    following = true;
+    lastPos = pos;
 }
 
 void say(char const* topic, float chance) {

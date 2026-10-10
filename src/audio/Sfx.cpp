@@ -56,20 +56,25 @@ namespace {
         return group;
     }
 
-    FMOD::Sound* soundFor(char const* name) {
+    // Loaded once each: decoded whole (the short UI sounds), or streamed.
+    FMOD::Sound* load(std::string const& path, bool stream) {
         static std::unordered_map<std::string, FMOD::Sound*> cache;
-        auto it = cache.find(name);
+        auto it = cache.find(path);
         if (it != cache.end()) return it->second;
         auto engine = FMODAudioEngine::sharedEngine();
         if (!engine || !engine->m_system) return nullptr;
         FMOD::Sound* sound = nullptr;
-        if (engine->m_system->createSound(pathFor(name).c_str(), FMOD_DEFAULT | FMOD_CREATESAMPLE, nullptr, &sound) != FMOD_OK) sound = nullptr;
-        cache.emplace(name, sound);
+        FMOD_MODE mode = FMOD_DEFAULT | (stream ? FMOD_CREATESTREAM : FMOD_CREATESAMPLE);
+        if (engine->m_system->createSound(path.c_str(), mode, nullptr, &sound) != FMOD_OK) sound = nullptr;
+        cache.emplace(path, sound);
         return sound;
     }
 
-    FMOD::Channel* playOnGroup(char const* name, float frequency, float volume) {
-        auto sound = soundFor(name);
+    FMOD::Sound* soundFor(char const* name) {
+        return load(pathFor(name), false);
+    }
+
+    FMOD::Channel* playSound(FMOD::Sound* sound, float frequency, float volume) {
         auto target = group();
         if (!sound || !target) return nullptr;
         FMOD::Channel* channel = nullptr;
@@ -78,6 +83,10 @@ namespace {
         channel->setPitch(frequency);
         channel->setPaused(false);
         return channel;
+    }
+
+    FMOD::Channel* playOnGroup(char const* name, float frequency, float volume) {
+        return playSound(soundFor(name), frequency, volume);
     }
 
     float uiVolume() {
@@ -106,6 +115,16 @@ FMOD::Channel* playCue(char const* name) {
     float volume = uiVolume();
     if (volume <= 0.f) return nullptr;
     return playOnGroup(name, 1.f, volume);
+}
+
+void preloadFile(std::string const& path) {
+    load(path, true);
+}
+
+FMOD::Channel* playCueFile(std::string const& path) {
+    float volume = uiVolume();
+    if (volume <= 0.f) return nullptr;
+    return playSound(load(path, true), 1.f, volume);
 }
 
 void hover(char const* name) {

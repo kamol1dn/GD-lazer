@@ -88,7 +88,7 @@ Windows, Android and macOS (Apple Silicon and Intel), all for GD 2.2081 and Geod
 - An osu!-style results screen when you finish a level, with your attempts, jumps and time, a "new best" badge, GD's rewards and coins, and other mods' end-screen buttons
 
 **Startup and exit**
-- Black loading screen with a spinner, then an animated intro while the first song fades in; an outro when quitting
+- Black loading screen with a spinner, then an animated intro cut to the opening of Dash (the song plays on as the menu's first), with the cursor echoing the song's voice lines as they come; an outro when quitting
 
 **Cursor and sound**
 - osu!'s menu cursor on Windows. It shows exactly when the system cursor would, so it stays out of gameplay and behaves with other mods' menus
@@ -138,7 +138,7 @@ tools/                icon font generator, Android install script
 
 ## Credits
 
-- UI sounds from [osu-resources](https://github.com/ppy/osu-resources) by ppy Pty Ltd, [CC-BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/), converted to Ogg Vorbis. The intro uses the opening of osu!'s "triangles" theme by cYsmix and the outro osu!'s "see you next time" line, from the same repository. This is why the mod must stay free.
+- UI sounds from [osu-resources](https://github.com/ppy/osu-resources) by ppy Pty Ltd, [CC-BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/), converted to Ogg Vorbis. The outro uses osu!'s "see you next time" line from the same repository; the intro plays GD's own Dash (MDK). This is why the mod must stay free.
 - Bug fixes, the macOS port, and additional features by [souply](https://github.com/souplyy).
 - Motion and layout adapted from [osu!](https://github.com/ppy/osu) and [osu-framework](https://github.com/ppy/osu-framework) (MIT).
 - Font: [Outfit](https://github.com/Outfitio/Outfit-Fonts) (SIL Open Font License).

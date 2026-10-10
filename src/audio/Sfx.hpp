@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 namespace FMOD { class Channel; }
 
 namespace lazer::sfx {
@@ -48,11 +50,8 @@ namespace sound {
     inline constexpr char const* DIALOG_DANGEROUS_SELECT = "ui-dialog-dangerous-select";
 }
 
-// Intro / outro audio, from osu-resources: the triangles theme's opening
-// (with osu!'s voice taken out of the first second) and the "see you next
-// time" voice line.
+// Outro audio, from osu-resources: the "see you next time" voice line.
 namespace cue {
-    inline constexpr char const* INTRO = "intro-triangles";
     inline constexpr char const* SEEYA = "intro-seeya";
 }
 
@@ -62,6 +61,11 @@ void preload(char const* name);
 // Plays a cue (no debounce, no pitch variation) at the UI sound volume, and
 // gives back its channel (null when it didn't play), to follow its position.
 FMOD::Channel* playCue(char const* name);
+
+// The same for an audio file by path (one of GD's songs), streamed rather
+// than decoded whole. preloadFile opens it ahead of time.
+void preloadFile(std::string const& path);
+FMOD::Channel* playCueFile(std::string const& path);
 
 // Plays `name` at `frequency` (speed and pitch, like osu!'s channel Frequency),
 // randomised by +-pitchVariation. Repeats of the same sound within 20 ms are
