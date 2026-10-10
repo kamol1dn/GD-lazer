@@ -24,16 +24,19 @@ namespace {
     constexpr float FIRST_BEAT_MS = 1149;
 
     // The bar before the drop (bar 8, beats 28-31 from the song's first):
-    // longer dragged on every start.
-    constexpr int START_BEAT = 28;
-    constexpr unsigned START_MS = static_cast<unsigned>(FIRST_BEAT_MS + START_BEAT * BEAT_MS); // 14274
+    // longer dragged on every start. The song comes in a moment before the
+    // bar, so the fade-in isn't on a stab.
+    constexpr int ENTER_BEAT = 28;
+    constexpr float ENTER_MS = FIRST_BEAT_MS + ENTER_BEAT * BEAT_MS; // 14274: the cube flies in
+    constexpr unsigned START_MS = static_cast<unsigned>(ENTER_MS - 300);
     constexpr float HOP_MS = 14743;    // beat 29: the cube hops
     constexpr float WRITE_MS = 15000;  // "Geometry": the cube dashes right, writing it
     constexpr float WRITE_END_MS = 15450;
     constexpr float DASH_MS = 15750;   // "Dash": DASH slams in
     constexpr float DROP_MS = 16149;   // the drop: the flash
-    // Starting mid-song, it fades in over the first beats.
-    constexpr float FADE_IN_MS = 1000;
+    // Starting mid-song, it fades in over the first beats: slow at first
+    // (volume is linear, hearing isn't), full before "Dash".
+    constexpr float FADE_IN_MS = 1200;
     // After the flash the words zoom through the camera, over the menu.
     constexpr float ZOOM_MS = 260;
 
@@ -246,8 +249,11 @@ void IntroSequence::updateCube(float dt) {
     float x, y = baseY, rotation = 0;
     bool visible = true;
 
-    if (t < WRITE_MS) {
-        float in = eased(Easing::OutQuint, (t - START_MS) / 330.f);
+    if (t < ENTER_MS) {
+        visible = false;
+        x = -m_cubeSize;
+    } else if (t < WRITE_MS) {
+        float in = eased(Easing::OutQuint, (t - ENTER_MS) / 330.f);
         x = lerp(-m_cubeSize, mark, in);
         if (t >= HOP_MS) {
             // A GD jump: up and down over ~350 ms, turning a quarter on the way.
@@ -401,7 +407,7 @@ void IntroSequence::update(float dt) {
     }
     if (havePosition && std::abs(static_cast<float>(position) - m_timeMs) > 60.f) m_timeMs = static_cast<float>(position);
 
-    float fadeIn = eased(Easing::OutQuad, (m_timeMs - START_MS) / FADE_IN_MS);
+    float fadeIn = eased(Easing::In, (m_timeMs - START_MS) / FADE_IN_MS);
     if (m_revealed) {
         // The words zoom through the camera, then it's all gone (our own copy
         // of the song fading out under the menu's music first).
