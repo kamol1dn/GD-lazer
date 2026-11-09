@@ -1,6 +1,8 @@
 # Lazer UI
 
 > [!IMPORTANT]
+> I am waiting for Geode to port to the new GD version, once done, I'll port this mod to new sdk and continue development
+
 > **It is not intended for Geode's official mod index, and never will be.** Please do not submit it there or ask for it to be added.
 >
 > Builds come from this repo's source through GitHub Actions: grab the `.geode` from [Releases](https://github.com/kamol1dn/GD-lazer/releases) or the latest [Actions](https://github.com/kamol1dn/GD-lazer/actions) run. They aren't reviewed by Geode, so install manually and at your own risk.
