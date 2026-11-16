@@ -9,11 +9,9 @@
 >
 > **How to install, step by step for Windows, Android and macOS: [INSTALL.md](INSTALL.md).**
 
-## An apology
+## About design
 
-I submitted an early version of this mod to the Geode index as a local build, without knowing how the process works. That was my mistake, and I'm sorry to the Geode reviewers for the extra work it caused. The listing has been taken down, and this mod will stay off the index.
-
-I also understand the concern about how closely it follows osu!lazer's design. Credit for that design belongs to ppy and the osu! team.
+I understand the concern about how closely it follows osu!lazer's design. Credit for that design belongs to ppy and the osu! team. It's mostly a personal project and it is up to you whether you want to use this mod, i just wanted gd to look like osu, that's it...
 
 ## About
 
